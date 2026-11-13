@@ -1,0 +1,11 @@
+node_modules/
+build/
+dist/
+coverage/
+artifacts/ci/
+tmp/ci-runner-*/
+.DS_Store
+*.log
+.env*
+!.env.example
+tmp/print-audit/

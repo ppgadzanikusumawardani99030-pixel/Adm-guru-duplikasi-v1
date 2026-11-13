@@ -1,0 +1,126 @@
+# Step 08 / Langkah 4 — TP/ATP/substance optimization against actual JP slots
+
+Baseline: `5122c3e783a94d578b9252c6d49f9ebc1462a9fc` (`main`, clean working tree before this task). Changes remain uncommitted; this SHA identifies the baseline, not a new implementation commit.
+
+## Audit before editing
+
+- `meetingAlignmentService`: previous merger repeated the full ATP allocation for each meeting and compared against the semester's minimum slot. This conflated curriculum allocation, meeting demand and dated session capacity.
+- `meetingReconciliationService`: existing `mergeReconciliationContent` remains the canonical union primitive used by the optimizer. Existing validators, placement and save path are reused; no replacement calendar, persistence store, AI transport or document engine was added.
+- `unitExecutionPlanService`: canonical unit/meeting IDs, material/ATP/TP lineage, duplicate detection and coverage remain authoritative. New optional meeting fields are validated here.
+- `learningMeetingScheduleService`: canonical mapping order + meeting order are paired with actual date/session slots. The shared JP simulator is now used by both optimization and automatic scheduling; manual schedules also check explicit meeting demand.
+- `storageV5`: existing actual-slot/calendar/weekly-JP resolvers feed a read-only adapter. All journal/attendance/realization, legacy date/ordinal attendance, learning-plan scopes/activities/assessments and explicit assessment/grade meeting references are protected. Ordinary saves also reject modifications of protected content.
+- Generator/client: existing `/api/ai/recommend-meeting-reconciliation` and `aiFetch` gain an OPTIMIZE draft mode using the existing model/retry helper. No provider/model change. Initial meeting generation does not fabricate per-meeting JP from ATP.
+- Consumers: scheduled projection -> learning-plan scope -> AI learning plan and Modul Ajar/PROTA/PROMES/journal/PDF/DOCX. New source activities and meeting demand flow through the existing projection. Essential source descriptions/time budgets are checked before a LearningPlan/document can be treated as ready. Historical snapshots remain untouched.
+
+## JP contracts
+
+1. ATP `allocatedJP`/legacy `jp`: curriculum source allocation only. It is never copied or multiplied into each meeting.
+2. Optional `LearningMeeting.plannedJP`: explicit teacher-entered meeting demand, or a reviewed derivation from quantified meeting activities and the existing curriculum minutes/JP resolver. No migration or guessed default is applied to old records. Old `alignmentMerge.requiredJP` alone is not treated as meeting demand.
+3. Actual slot `jp`: read from existing effective subject slots, sorted by date/session order. A meeting must fit its particular assigned slot (`plannedJP <= slot.jp`); dated schedules/documents retain the actual slot JP. Unused capacity is transparent, not a declaration of curriculum compliance.
+
+Optional `activities` reuse `LearningActivity` (ID, description, minutes, activity type); optional `essential` records teacher review. A missing essential flag is treated conservatively. These fields are unnecessary for unchanged legacy records, but substantive reduction/redistribution needs evidence. Legacy records remain readable and exportable with unknown demand; optimization can block until teachers provide demand/evidence.
+
+## Strategies and simulation
+
+The existing proposal/apply service now searches deterministic ordered combinations and chooses lower-cost changes first: REMOVE_EMPTY, proven REDUCE_REDUNDANT, MERGE, then COMPACT/REDISTRIBUTE. ADD remains an explicit optional teacher choice. No unit crosses a Bab/semester boundary.
+
+- REMOVE_EMPTY: no content or protected reference; every unit is preserved.
+- REDUCE_REDUNDANT: adjacent meetings must have identical canonical scope, title/substance, activity sequence and quantified demand. Activities must be explicitly reviewed as nonessential; unique material/TP/ATP, assessments and essential/unreviewed activities cannot be discarded. Original source objects remain archived.
+- MERGE: retains source titles, all references and activities in source order; uses the sum of **meeting demand**, not ATP allocations. Different scopes need activity evidence and valid ATP introduction/prerequisite order.
+- COMPACT: can pack three meetings into two actual slots; no activity is split, shortened, invented or dropped. Durations, essential flags and order are retained.
+- REDISTRIBUTE: can move whole activities between two meeting IDs within the same supported scope to fit actual 2/4 JP order. AI can propose broader canonical reference redistribution, but moved activities must carry their original lineage, all coverage and total known demand must be preserved, and prerequisite order must remain valid.
+
+The entire candidate is simulated, including unchanged meetings and protected dated anchors. A protected meeting cannot shift date/session/JP; without a dated anchor its original sequential position is preserved. Unknown demand, insufficient JP, essential/assessment conflicts, bad lineage, missing units or stale source data produce blockers. A partially feasible proposal is never applied if the whole plan is infeasible.
+
+Meeting-count status, actual-slot feasibility and curriculum JP review are separate. The existing annual JP assessment remains the curriculum authority; matching 41 meetings cannot mark curriculum allocation complete.
+
+## AI and teacher approval
+
+AI may return only a draft over existing IDs. It cannot invent demand for unknown meetings, reduce a unit's total demand, drop/reorder activities, change essential/assessment metadata or erase essential text/time. Without activity evidence, original title/substance and references must remain. Invalid provider output is rejected on the server and again on the client; provider errors and invalid drafts have separate codes. Journal/attendance payloads are excluded from AI requests.
+
+The existing review dialog shows Bab/meeting number, before/after action, TP/ATP/material references, demand JP, actual slot JP, reasons, conflicts and dependent-data impact. The teacher can edit demand and optional quantified activities, inspect a draft, cancel or explicitly approve. A late AI response after cancellation is discarded. AI never writes data.
+
+Approval re-reads the V5 source and reconstructs/compares the full proposal. Candidate lineage, coverage, source fingerprints, activity substance/time, protected content and slot feasibility are rechecked. One existing V5/localStorage write saves the plan plus schedule/document invalidation; injected failures leave persisted data unchanged. Surviving IDs/dated entries and historical snapshots remain intact. Existing global annual revision means both semester schedules require review at Langkah 5 after approval.
+
+## Changed files
+
+| File | Reason |
+|---|---|
+| `src/types/index.ts` | Backward-compatible meeting demand/activities and optimization provenance. |
+| `src/services/meetingContentService.ts` | Shared explicit-demand/actual-slot checks and sequential simulation. |
+| `src/services/meetingAlignmentService.ts` | Strategy search, actual ordered JP simulation, draft validation, protected anchors and deterministic approval. |
+| `src/services/unitExecutionPlanService.ts` | Validate optional JP/activity fields without inventing legacy values. |
+| `src/services/learningMeetingScheduleService.ts` | Enforce explicit demand in automatic/manual schedules. |
+| `src/services/storageV5.ts` | Existing-slot details/minutes resolver, assessment/grade references, generic protected-save guard and atomic approval path. |
+| `src/services/aiService.ts`, `server.ts` | Draft-only optimization through existing transport/route/model helper. |
+| `src/services/scheduledLearningMeetingProjectionService.ts` | Reject incompatible JP and carry reviewed activity/demand metadata. |
+| `src/services/learningPlanService.ts`, `src/services/learningPlanActivityMeetingService.ts` | Preserve source substance/durations in downstream learning plans and document readiness. |
+| `src/components/UnitExecutionPlanManager.tsx` | Demand/activity editing, detailed before/after simulation, optional AI draft and mandatory approval/cancel. |
+| `scripts/testMeetingAlignment.ts` | Optimization, actual UI/backend handlers, persistence/failure, schedule/document and old/new import regressions. |
+| `scripts/testMeetingDurationByLevel.ts` | Give the duration fixture a persisted execution revision, required by the already-existing stale-schedule contract. No production validator was relaxed. |
+| `docs/meeting-alignment.md` | Current audit, contracts, changed-file inventory and verification report. |
+
+## Verification
+
+The alignment suite covers the original empty-slot case plus a real 48 -> 41 mixed-strategy fixture on actual 2/4 JP slots, infeasible 48 -> 41 blockers, redundancy vs unique TP/material, essential activities, assessments, ATP prerequisites, COMPACT/REDISTRIBUTE, unknown JP, actual/manual schedule mismatches, protected dated anchors, changed calendar/source, invalid AI output, cancellation/late responses, teacher approval, one-write invalidation, injected save failure, unchanged CP/TP/ATP/mapping/calendar, historical snapshots and old/new ZIP import with activity/meeting ID remapping. UI/backend handlers run with a deterministic provider boundary; no live Gemini claim.
+
+Executed commands/results are summarized in the final chat report and existing `artifacts/ci/{planning,documents}-results.json`.
+
+Final results: PASS — 33 alignment scenario groups, 7/7 planning CI suites, 7/7 document CI suites, all five additional regression scripts, final typecheck, final production build, and diff whitespace checks. The final alignment run also verifies that successful approval clears the old AI draft so the saved plan does not show a stale conflict. The build retains its existing large-chunk warning.
+
+- `npm run ci:tests -- planning` (includes alignment and calendar/integration suites).
+- `npm run ci:tests -- documents` (PROTA/PROMES/time allocation, learning plans and actual DOCX/PDF exports).
+- `npm run test:step08-jp`.
+- `npx tsx scripts/testModulAjarMeetingProjectionRegression.ts`.
+- `npx tsx scripts/testJurnalMeetingRegression.tsx`.
+- `npx tsx scripts/testCompleteProjectArchiveRegression.ts`.
+- `npm run test:meeting-duration-v21`.
+- `npm run lint`, `npm run build`, `git diff --check`.
+
+NOT RUN: live Gemini, visual browser walkthrough, or the entire unrelated repository test inventory. Existing large-bundle build warnings are outside this scoped change.
+
+## Remaining teacher decisions
+
+Supply unknown meeting demand/quantified activities instead of reusing ATP JP. Review substantive and pedagogical suitability before approval; the deterministic checks do not replace teacher judgment. Essential/assessment/prerequisite or protected-reference conflicts require explicit manual planning, never deleting factual data to unlock optimization. If 41 slots are insufficient, keep the blocker rather than forcing 41. After approval, review both schedules and regenerate current documents; historical snapshots stay historical. Curriculum annual-JP comparison remains a separate review.
+
+## Diagnostic follow-up — 2026-11-06
+
+Baseline for this follow-up: `9129596` (clean working tree before editing). The supplied production diagnostic confirmed S2 48/41 but did not contain meeting demand, actual-slot feasibility or optimization blockers; it cannot establish which reductions are safe or prove a Gemini error.
+
+Confirmed reporting gaps in the owning source:
+- Generation recorded AI_GENERATION_REQUEST, then returned on allocator conflict without a terminal event or last-attempt diagnostic.
+- Optimization requests/results/errors/cancellation had no diagnostic events.
+- The report omitted the existing alignment proposal, blockers, source errors and actual ordered JP simulation.
+- A historical AI snapshot could replace the report's current capacity/boundary values.
+
+Changes are limited to `diagnosticService.ts`, `UnitExecutionPlanManager.tsx`, `testMeetingAlignment.ts` and this report. Current capacity is now computed from the current plan/boundary; stale AI snapshots remain historical results. Reports include build SHA/dirty state, capacity validation separate from coverage, stored plannedJP gaps, current optimization status/errors/conflicts/proposed distribution, and actual JP simulation. Missing evaluation is explicitly NOT_EVALUATED. Generation preflight emits CAPACITY_CONFLICT/BLOCKED, zero-work emits a terminal success, and optimization request/draft/error/cancellation events are recorded. The diagnostic copy handler passes live component state and the existing proposal.
+
+No allocation, calendar, curriculum, meeting data, or provider/model behavior is changed by this follow-up. A fresh report from the new build is still required to identify the supplied project's actual optimization blockers; aggregate counts alone are insufficient. Tests cover stale AI capacity snapshots, coverage-complete-but-over-capacity, missing demand, unevaluated optimization, real preflight terminal events, copied diagnostics and optimization/cancellation events. Live Gemini and the user's stored project were not accessed.
+
+## ATP reuse validation correction — 2026-11-07
+
+Audit baseline: `cdc3c0651ae80002792c3f196054998c2d8f6b22`. `validateMeetingATPOrder` was called by merge feasibility, AI optimization validation, alignment proposals, and final calendar candidate validation. It compared first introductions against a maximum stepNumber, rejecting e.g. ATP 3 → 1 even when both belonged to the teacher's material mapping. A second inferred-order check in the shared mapping validator could reject wholly reversed Bab spans before final generation. Neither comparison represents an explicit prerequisite: ATPItem currently defines no prerequisite relation.
+
+The public validator entry point remains compatible and checks canonical ATP references without sorting or inferring dependencies. Full material/TP/ATP compatibility and coverage remain in validateUnitExecutionPlan and mapping validation; no lineage gate is bypassed. Activity sequence preservation, essential/assessment safeguards and legacy-content blockers in optimization remain unchanged. The final-generation prompt explicitly follows Step 07 and permits mapped ATP reuse. Calendar, JP, slots, semester boundaries and protected-reference validation are unchanged. No prerequisite schema or canonical data migration was introduced. Future structured prerequisites must be validated from an explicit contract, never inferred from document numbering.
+
+Regression fixture: 8 Bab, S1 45 slots, S2 41 slots, per-Bab material/ATP sequence 3 → 1 → 2 → 3, repeated across Bab; exact generation/save succeeds, mismatched TP/material lineage and invented ATP fail, canonical mapping/TP/ATP/calendar remain byte-equivalent. The former Step 07 reversed-number assertion now expects valid teacher mapping; incompatible lineage assertions remain intact.
+
+## Final generator: actual calendar slots — 2026-11-06
+
+Step 08 flow correction: the existing weekday editor is available directly in Waktu Semester (and remains available in Alokasi Waktu). Both semester setup screens and Alokasi Waktu remain independently accessible, including with overcapacity; actual-slot readiness controls completion, not access to those settings. Structure completion requires exact counts and slot/JP validation, with the existing validated saved-schedule path retained for legacy plans. No estimates earn final-ready checkmarks. Kosongkan Draf Pertemuan asks for confirmation and clears only the screen draft; saved data remains unchanged, direct saving/alignment is blocked until restore or reviewed regeneration, and protected references reject clearing. Regeneration uses the pre-clear source for validation and provenance. Teacher approval remains the only write in that flow; existing document invalidation preserves snapshots.
+
+Diagnostic follow-up for estimated S1 42/no actual slots: weekly-pattern readiness intentionally permits estimates when teaching days are missing. Storage now preserves the effective-slot resolver's semester-specific reason separately from alignment errors. Final generation stops before clearing/allocating the temporary basis if the calendar fails, so a missing S1 calendar no longer produces a secondary coverage error. Step 08 generator readiness requires actual slots; Alokasi Waktu remains accessible after semester setup and Bab placement even when meetings overflow, allowing the teacher to assign teaching days without bypassing finalization. No dates or weekdays are inferred. The supplied aggregate diagnostic alone cannot prove which S1 setting is absent; the new resolver reason identifies that setting on the real project.
+
+Final generation now uses the existing effective-slot resolver through Storage V5. Confirmed actual slots are ordered by date/session; every slot receives exactly one meeting and supplies its plannedJP. Estimated capacity is rejected. The existing allocator has an opt-in exact mode; flexible alignment and legacy API callers retain their previous ceiling semantics. Canonical coverage and ATP introduction order are validated independently of calendar count/JP.
+
+Generate completes existing meetings; Regenerate starts a new content draft for all actual slots. Both produce a review before saving. Regenerate rejects any protected meeting reference, and archives unprotected prior meeting content using existing alignment provenance. Approval rechecks the source fingerprint, coverage, IDs, ordering, slot JP and protected references, then reuses the existing single-write schedule/document invalidation path. A provider, stale-data or storage failure leaves the saved plan intact. Calendar and canonical curriculum data are not modified.
+
+The meeting suite covers exact 10-slot generation, mixed 4/2 JP, holidays, 48-to-41 preview/save, protected references, stale calendar, invalid AI output, estimated capacity, atomic write failure, and actual UI approval/cancellation. Modul Ajar already resolves JP from actual scheduled meetings; its existing duration/projection regressions verify that connection. Live Gemini and deployed-browser interaction remain unverified. Teacher approval still assesses pedagogical quality; protected plans require manual review rather than automatic regeneration.
+
+## COMPLETE placeholder refill — 2026-11-07
+
+Audit baseline: d9f326f9708603c2c7f8b0405ade5137c8de4368. COMPLETE previously counted empty existing meetings as occupied slots and requested content only for additional slots. AI coverage repair operates only on generated content, so the untouched empty meeting could still make the final candidate incomplete even when the AI covered all materials elsewhere. Candidate errors also omitted the validator's per-Bab missing-coverage arrays.
+
+The existing allocator now accepts explicit refill IDs only from content-free, unprotected placeholders. Physical counts and per-Bab final targets are allocated before those placeholders are removed from the transient AI basis. Generated content fills those positions first, retaining ID, original title and slot position; only remaining content creates new meetings. Unknown fields, activities, partial lineage and protected references are never discarded to qualify for refill. Protected empty meetings report a manual blocker. The prompt's JP budgets exclude retained meeting orders, so non-tail holes receive their actual slot JP. Final validation still requires complete canonical coverage, valid lineage, exact count/JP and safe references; no saved plan changes before approval.
+
+Regression coverage includes empty COMPLETE projects and one titled empty meeting with 8 Bab / 45+41 slots, full-capacity refill on mixed 4/2 JP, unchanged filled meetings, protected placeholders, invalid lineage, detailed missing IDs and immutable mapping/TP/ATP/calendar. Live Gemini and the user's persisted project are not accessed by these tests.
