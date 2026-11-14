@@ -72,7 +72,7 @@ export function buildModulAjarProjection(context: DocumentGenerationContext): Mo
         jpResolutionSource: 'UNRESOLVED',
       };
     }
-    if (plan.status !== 'SIAP') {
+    if (!context.productionMode && plan.status !== 'SIAP') {
       return {
         isReady: false,
         error: `Rencana pembelajaran "${plan.topic || plan.id}" terpilih belum diubah statusnya menjadi SIAP.`,
@@ -83,26 +83,32 @@ export function buildModulAjarProjection(context: DocumentGenerationContext): Mo
     }
     selectedPlan = plan;
   } else {
-    const siapPlans = learningPlans.filter((p) => p.status === 'SIAP');
-    if (siapPlans.length === 0) {
+    const candidatePlans = context.productionMode
+      ? learningPlans
+      : learningPlans.filter((p) => p.status === 'SIAP');
+    if (candidatePlans.length === 0) {
       return {
         isReady: false,
-        error: 'Belum ada rencana pembelajaran (Modul Ajar) dengan status SIAP.',
+        error: context.productionMode
+          ? 'Belum ada rencana pembelajaran (Modul Ajar) pada semester aktif.'
+          : 'Belum ada rencana pembelajaran (Modul Ajar) dengan status SIAP.',
         resolvedTPs: [],
         resolvedAllocatedJP: undefined,
         jpResolutionSource: 'UNRESOLVED',
       };
     }
-    if (siapPlans.length > 1) {
+    if (candidatePlans.length > 1) {
       return {
         isReady: false,
-        error: 'Terdapat lebih dari satu rencana pembelajaran (Modul Ajar) dengan status SIAP. Silakan pilih salah satu rencana secara eksplisit.',
+        error: context.productionMode
+          ? `Terdapat ${candidatePlans.length} rencana pembelajaran (Modul Ajar). Silakan pilih salah satu rencana secara eksplisit.`
+          : 'Terdapat lebih dari satu rencana pembelajaran (Modul Ajar) dengan status SIAP. Silakan pilih salah satu rencana secara eksplisit.',
         resolvedTPs: [],
         resolvedAllocatedJP: undefined,
         jpResolutionSource: 'UNRESOLVED',
       };
     }
-    selectedPlan = siapPlans[0];
+    selectedPlan = candidatePlans[0];
   }
 
   const validation = validateLearningPlanForModulAjar(selectedPlan, {
@@ -118,6 +124,7 @@ export function buildModulAjarProjection(context: DocumentGenerationContext): Mo
     calendar: context.calendar, calendarDays: context.calendarDays,
     subjectWeeklySchedule: context.subjectWeeklySchedule,
     semesterJPSetting: context.semesterJPSetting, annualJPReference: context.annualJPReference,
+    allowDraftWorkflow: Boolean(context.productionMode),
   });
 
   if (!validation.valid) {

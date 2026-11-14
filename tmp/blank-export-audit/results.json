@@ -1,0 +1,639 @@
+{
+  "results": [
+    {
+      "type": "CP",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "TP",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ANALISIS_CP_TP",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ATP",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PEMETAAN_ATP_UNIT",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PROTA",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PROMES",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 2,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "MODUL_AJAR",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 2,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "KKTP",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ASESMEN",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "DAFTAR_HADIR",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "DAFTAR_NILAI",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "JURNAL",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "REMEDIAL_PENGAYAAN",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "KALENDER_AKADEMIK",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "HARI_EFEKTIF",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ALOKASI_WAKTU",
+      "semester": 1,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ANALISIS_SKL_KI_KD",
+      "semester": 1,
+      "k13": true,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PENETAPAN_KKM",
+      "semester": 1,
+      "k13": true,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PROTA",
+      "semester": 1,
+      "k13": true,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PROMES",
+      "semester": 1,
+      "k13": true,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 2,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ALOKASI_WAKTU",
+      "semester": 1,
+      "k13": true,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "CP",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "TP",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ANALISIS_CP_TP",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ATP",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PEMETAAN_ATP_UNIT",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PROTA",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "PROMES",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 2,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "MODUL_AJAR",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 2,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "KKTP",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ASESMEN",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "DAFTAR_HADIR",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "DAFTAR_NILAI",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "JURNAL",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "REMEDIAL_PENGAYAAN",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "KALENDER_AKADEMIK",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "HARI_EFEKTIF",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    },
+    {
+      "type": "ALOKASI_WAKTU",
+      "semester": 2,
+      "k13": false,
+      "docx": "CONTENT_AND_IDENTITY_PASS",
+      "pdfPages": 1,
+      "pdfBounds": [],
+      "docxVisual": "BLOCKED_PENDING_WORD_OR_LIBREOFFICE"
+    }
+  ],
+  "zip": {
+    "files": 64,
+    "docx": 32,
+    "pdf": 32,
+    "items": [
+      {
+        "type": "CP",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Capaian_Pembelajaran_Format_Kosong.pdf",
+          "01_Capaian_Pembelajaran_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "TP",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "02_Tujuan_Pembelajaran_Format_Kosong.pdf",
+          "02_Tujuan_Pembelajaran_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ANALISIS_CP_TP",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "03_Analisis_CP_TP_PJOK_Kelas_2_Format_Kosong.pdf",
+          "03_Analisis_CP_TP_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ATP",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "04_ATP_PJOK_Kelas_2_Format_Kosong.pdf",
+          "04_ATP_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "PEMETAAN_ATP_UNIT",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "05_Pemetaan_ATP_Unit_PJOK_Kelas_2_Format_Kosong.pdf",
+          "05_Pemetaan_ATP_Unit_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "PROTA",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "06_Program_Tahunan_PROTA_PJOK_Kelas_2_Format_Kosong.pdf",
+          "06_Program_Tahunan_PROTA_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "PROMES",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Program_Semester_PROMES_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Program_Semester_PROMES_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "PROMES",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Program_Semester_PROMES_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Program_Semester_PROMES_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "MODUL_AJAR",
+        "instanceId": "lp",
+        "instanceTitle": "Bermain bola",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "Modul_Ajar_BAB_1_Bermain_bola_Format_Kosong.pdf",
+          "Modul_Ajar_BAB_1_Bermain_bola_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "MODUL_AJAR",
+        "instanceId": "lp-second",
+        "instanceTitle": "Bermain bola",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "Modul_Ajar_BAB_1_Bermain_bola_Format_Kosong_1.pdf",
+          "Modul_Ajar_BAB_1_Bermain_bola_Format_Kosong_1.docx"
+        ]
+      },
+      {
+        "type": "MODUL_AJAR",
+        "instanceId": "lp-s2",
+        "instanceTitle": "Bab Semester 2",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "Modul_Ajar_BAB_2_Bab_Semester_2_Format_Kosong.pdf",
+          "Modul_Ajar_BAB_2_Bab_Semester_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "MODUL_AJAR",
+        "instanceId": "lp-s2-second",
+        "instanceTitle": "Bab Semester 2",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "Modul_Ajar_BAB_2_Bab_Semester_2_Format_Kosong_1.pdf",
+          "Modul_Ajar_BAB_2_Bab_Semester_2_Format_Kosong_1.docx"
+        ]
+      },
+      {
+        "type": "KKTP",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_KKTP_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_KKTP_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "KKTP",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_KKTP_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_KKTP_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ASESMEN",
+        "instanceId": "pkg",
+        "instanceTitle": "Perangkat Asesmen",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "15_Asesmen_Perangkat_Asesmen_Format_Kosong.pdf",
+          "15_Asesmen_Perangkat_Asesmen_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ASESMEN",
+        "instanceId": "pkg-second",
+        "instanceTitle": "Perangkat Asesmen",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "16_Asesmen_Perangkat_Asesmen_Format_Kosong.pdf",
+          "16_Asesmen_Perangkat_Asesmen_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ASESMEN",
+        "instanceId": "pkg-s2",
+        "instanceTitle": "Perangkat Asesmen",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "17_Asesmen_Perangkat_Asesmen_Format_Kosong.pdf",
+          "17_Asesmen_Perangkat_Asesmen_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ASESMEN",
+        "instanceId": "pkg-s2-second",
+        "instanceTitle": "Perangkat Asesmen",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "18_Asesmen_Perangkat_Asesmen_Format_Kosong.pdf",
+          "18_Asesmen_Perangkat_Asesmen_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "DAFTAR_HADIR",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Daftar_Hadir_Siswa_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Daftar_Hadir_Siswa_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "DAFTAR_HADIR",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Daftar_Hadir_Siswa_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Daftar_Hadir_Siswa_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "DAFTAR_NILAI",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Buku_Daftar_Nilai_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Buku_Daftar_Nilai_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "DAFTAR_NILAI",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Buku_Daftar_Nilai_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Buku_Daftar_Nilai_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "JURNAL",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Jurnal_Harian_Mengajar_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Jurnal_Harian_Mengajar_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "JURNAL",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Jurnal_Harian_Mengajar_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Jurnal_Harian_Mengajar_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "REMEDIAL_PENGAYAAN",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Program_Remedial_Pengayaan_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Program_Remedial_Pengayaan_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "REMEDIAL_PENGAYAAN",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Program_Remedial_Pengayaan_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Program_Remedial_Pengayaan_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "KALENDER_AKADEMIK",
+        "instanceId": "sp1",
+        "instanceTitle": "Kalender Pendidikan Semester 1",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Kalender_Pendidikan_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Kalender_Pendidikan_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "KALENDER_AKADEMIK",
+        "instanceId": "sp2",
+        "instanceTitle": "Kalender Pendidikan Semester 2",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "02_Kalender_Pendidikan_PJOK_Kelas_2_Format_Kosong.pdf",
+          "02_Kalender_Pendidikan_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "HARI_EFEKTIF",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Rincian_Hari_Efektif_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Rincian_Hari_Efektif_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "HARI_EFEKTIF",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Rincian_Hari_Efektif_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Rincian_Hari_Efektif_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ALOKASI_WAKTU",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Alokasi_Waktu_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Alokasi_Waktu_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      },
+      {
+        "type": "ALOKASI_WAKTU",
+        "status": "SUCCESS",
+        "filesGenerated": [
+          "01_Alokasi_Waktu_PJOK_Kelas_2_Format_Kosong.pdf",
+          "01_Alokasi_Waktu_PJOK_Kelas_2_Format_Kosong.docx"
+        ]
+      }
+    ]
+  },
+  "docxVisual": "BLOCKED until Word/LibreOffice render succeeds"
+}

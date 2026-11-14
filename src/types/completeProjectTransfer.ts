@@ -10,6 +10,8 @@ export interface CompleteProjectArchive {
 
 export interface CompleteProjectImportOptions {
   mode: 'RESTORE' | 'COPY' | 'IDENTITY_ONLY' | 'IDENTITY_SCHEDULE' | 'OTHER_CLASS' | 'CONTINUE_EDITING';
+  productionMode?: boolean;
+  preserveFactualData?: boolean;
   documentDate?: string;
   targetGrade?: string;
   targetClassSection?: string;

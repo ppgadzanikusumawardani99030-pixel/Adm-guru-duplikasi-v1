@@ -57,6 +57,7 @@ export interface DocumentGenerationContext {
   academicSetting: AcademicSetting;
   workspace?: AdministrationWorkspace;
   documentMode?: DocumentMode; // 'data' | 'blank'
+  productionMode?: boolean; // When true, bypass workflow-only SIAP/AI/step-confirmation gates while preserving structural & minimum data validation
   snapshot?: DocumentSnapshot; // Preserved frozen snapshot for historical documents
   skipDownload?: boolean; // When true, generates document and returns blob without triggering browser saveAs
   effectiveWeeksCount?: number; // for PROMES (default 18 weeks/semester)

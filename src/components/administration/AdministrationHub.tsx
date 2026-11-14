@@ -43,6 +43,7 @@ import {
   AssessmentPackage,
   SemesterJPSetting,
   AnnualJPReference,
+  SemesterPlan,
 } from '../../types';
 import { TimePlanningManager } from './TimePlanningManager';
 import { AttendanceManager } from './AttendanceManager';
@@ -57,6 +58,7 @@ import { ProtaSemesterAllocationBundle } from '../../services/documentEngine';
 import { isK13 } from '../../services/curriculumRouter';
 import { buildAdministrationChainDiagnosticReport } from '../../services/diagnosticService';
 import { SemesterScheduleSummary } from './SemesterScheduleSummary';
+import type { DestinationIdentityUpdateInput } from '../../services/productionModeService';
 
 export type AdministrationTab =
   | 'time_planning'
@@ -128,6 +130,14 @@ interface AdministrationHubProps {
   onDeleteLearningPlan?: (planId: string) => boolean;
   onBackToStep: (stepId: any) => void;
   onUpdateDocuments?: (updatedDocs: AppDocumentRecord[]) => void;
+  productionMode?: boolean;
+  semesterPlans?: SemesterPlan[];
+  activeSemesterPlanId?: string;
+  onSelectSemesterPlan?: (id: string) => void;
+  onUpdateDestinationIdentity?: (
+    input: Omit<DestinationIdentityUpdateInput, 'profileId' | 'schoolId' | 'workspaceId'>
+  ) => { ok: boolean; error?: string; warning?: string };
+  onOpenCompleteImport?: () => void;
 }
 
 export const AdministrationHub: React.FC<AdministrationHubProps> = ({
@@ -187,9 +197,16 @@ export const AdministrationHub: React.FC<AdministrationHubProps> = ({
   onDeleteLearningPlan,
   onBackToStep,
   onUpdateDocuments,
+  productionMode = false,
+  semesterPlans = [],
+  activeSemesterPlanId,
+  onSelectSemesterPlan,
+  onUpdateDestinationIdentity,
+  onOpenCompleteImport,
 }) => {
   const isK13Active = isK13(academicSetting);
   const [activeTab, setActiveTab] = useState<AdministrationTab>(() => {
+    if (productionMode) return 'export_docs';
     if (!isK13Active && initialTab === 'time_planning') {
       return 'kktp';
     }
@@ -197,10 +214,14 @@ export const AdministrationHub: React.FC<AdministrationHubProps> = ({
   });
 
   React.useEffect(() => {
+    if (productionMode) {
+      setActiveTab('export_docs');
+      return;
+    }
     if (!isK13Active && activeTab === 'time_planning') {
       setActiveTab('kktp');
     }
-  }, [isK13Active, activeTab]);
+  }, [isK13Active, activeTab, productionMode]);
 
   const [assessmentSubTab, setAssessmentSubTab] = useState<'plan_master' | 'package_builder' | 'gradebook'>('plan_master');
   const [diagnosticNotice, setDiagnosticNotice] = useState<string | null>(null);
@@ -724,6 +745,12 @@ export const AdministrationHub: React.FC<AdministrationHubProps> = ({
             assessmentPackages={assessmentPackages}
             onBackToStep={onBackToStep}
             onUpdateDocuments={onUpdateDocuments}
+            productionMode={productionMode}
+            semesterPlans={semesterPlans}
+            activeSemesterPlanId={activeSemesterPlanId}
+            onSelectSemesterPlan={onSelectSemesterPlan}
+            onUpdateDestinationIdentity={onUpdateDestinationIdentity}
+            onOpenCompleteImport={onOpenCompleteImport}
           />
         )}
       </div>

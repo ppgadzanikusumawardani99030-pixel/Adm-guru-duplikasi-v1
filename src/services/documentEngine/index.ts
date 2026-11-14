@@ -240,21 +240,31 @@ export function resolveCanonicalLearningPlan(context: DocumentGenerationContext)
     if (!exactPlan) {
       return { error: `Rancangan Pembelajaran dengan ID '${context.activeLearningPlanId}' tidak ditemukan.` };
     }
-    if (exactPlan.status !== 'SIAP') {
+    if (!context.productionMode && exactPlan.status !== 'SIAP') {
       return { error: `Rancangan Pembelajaran '${exactPlan.title || exactPlan.topic || exactPlan.id}' berstatus '${exactPlan.status}'. Harus diverifikasi dan dikonfirmasi SIAP terlebih dahulu.` };
     }
     return { plan: exactPlan };
   }
 
-  const siapPlans = plans.filter((p) => p.status === 'SIAP');
-  if (siapPlans.length === 0) {
-    return { error: 'Tidak ada Rancangan Pembelajaran (Modul Ajar) yang berstatus SIAP untuk kelas/mapel ini.' };
+  const candidatePlans = context.productionMode
+    ? plans
+    : plans.filter((p) => p.status === 'SIAP');
+  if (candidatePlans.length === 0) {
+    return {
+      error: context.productionMode
+        ? 'Tidak ada Rancangan Pembelajaran (Modul Ajar) untuk kelas/mapel ini.'
+        : 'Tidak ada Rancangan Pembelajaran (Modul Ajar) yang berstatus SIAP untuk kelas/mapel ini.',
+    };
   }
-  if (siapPlans.length > 1) {
-    return { error: `Terdapat ${siapPlans.length} Rancangan Pembelajaran berstatus SIAP. Silakan pilih satu Modul Ajar secara spesifik (activeLearningPlanId) untuk diekspor.` };
+  if (candidatePlans.length > 1) {
+    return {
+      error: context.productionMode
+        ? `Terdapat ${candidatePlans.length} Rancangan Pembelajaran. Silakan pilih satu Modul Ajar secara spesifik (activeLearningPlanId) untuk diekspor.`
+        : `Terdapat ${candidatePlans.length} Rancangan Pembelajaran berstatus SIAP. Silakan pilih satu Modul Ajar secara spesifik (activeLearningPlanId) untuk diekspor.`,
+    };
   }
 
-  return { plan: siapPlans[0] };
+  return { plan: candidatePlans[0] };
 }
 
 /**
@@ -288,10 +298,12 @@ export function validateDocumentRequirements(
   }
 
   // Identity masking never bypasses the document-date or substance requirements.
-  const identityIssue = sourceIdentityExportIssue(type, context);
-  if (identityIssue) return { isValid: false, missingFields: [identityIssue], message: identityIssue, targetStep: 'academic' };
-  const importIssue = importDocumentPolicyIssue(type, context);
-  if (importIssue) return { isValid: false, missingFields: [importIssue], message: importIssue, targetStep: 'academic' };
+  if (!context.productionMode) {
+    const identityIssue = sourceIdentityExportIssue(type, context);
+    if (identityIssue) return { isValid: false, missingFields: [identityIssue], message: identityIssue, targetStep: 'academic' };
+    const importIssue = importDocumentPolicyIssue(type, context);
+    if (importIssue) return { isValid: false, missingFields: [importIssue], message: importIssue, targetStep: 'academic' };
+  }
   {
     const rawDate =
       context.snapshot
@@ -520,7 +532,8 @@ export function validateDocumentRequirements(
             context.assessmentCriteria || [],
             context.tp,
             context.academicSetting,
-            context.k13Analysis
+            context.k13Analysis,
+            { allowDraftWorkflow: Boolean(context.productionMode) }
           );
           if (!kktpValidation.isSiap) {
             if (kktpValidation.issues.length > 0) {
@@ -529,6 +542,37 @@ export function validateDocumentRequirements(
               missingFields.push('Kriteria Ketercapaian Tujuan Pembelajaran (KKTP) belum berstatus SIAP.');
             }
           }
+        }
+        break;
+
+      case 'KALENDER_AKADEMIK':
+      case 'HARI_EFEKTIF':
+        if (
+          context.productionMode &&
+          context.documentMode !== 'blank' &&
+          (!context.calendar?.startDate ||
+            !context.calendar?.endDate ||
+            (context.calendar.schoolDaysPerWeek !== 5 && context.calendar.schoolDaysPerWeek !== 6))
+        ) {
+          missingFields.push('Data Kalender Pendidikan semester aktif (tanggal mulai, tanggal selesai, dan pola hari sekolah) belum lengkap');
+        }
+        break;
+
+      case 'DAFTAR_HADIR':
+      case 'DAFTAR_NILAI':
+        if (context.productionMode && context.documentMode !== 'blank' && (context.students || []).length === 0) {
+          missingFields.push('Daftar siswa kelas aktif belum tersedia');
+        }
+        break;
+
+      case 'REMEDIAL_PENGAYAAN':
+        if (
+          context.productionMode &&
+          context.documentMode !== 'blank' &&
+          (context.remedials || []).length === 0 &&
+          (context.enrichments || []).length === 0
+        ) {
+          missingFields.push('Data program remedial atau pengayaan belum tersedia');
         }
         break;
 

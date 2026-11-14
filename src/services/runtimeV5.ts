@@ -5,7 +5,7 @@ import {
   SemesterPlan,
   SemesterJPSetting,
 } from '../types';
-import { AdministrationWorkspaceV5 } from '../types/storageV5';
+import { AdministrationWorkspaceV5, AppStorageStateV5 } from '../types/storageV5';
 import {
   AnnualDataV5Result,
   SemesterDataV5Result,
@@ -42,8 +42,8 @@ export interface RuntimeContextV5 {
  *
  * Never reads or touches legacy V3 storage.
  */
-export function getRuntimeContextV5(): RuntimeContextV5 {
-  const state = loadStorageV5();
+export function getRuntimeContextV5(stateOverride?: AppStorageStateV5): RuntimeContextV5 {
+  const state = stateOverride || loadStorageV5();
 
   // 1. Resolve active entities
   const activeProfile = state.activeProfileId

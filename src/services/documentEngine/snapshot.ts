@@ -91,9 +91,9 @@ export function resolveEffectiveContext(
   const effective = resolveSnapshotContext(context, snapshotOverride);
   const frozenNotice = (snapshotOverride || context.snapshot)?.planningReferenceNotice;
   const targetTimingApproved = context.zipAnnualSource?.yearPlan.identityOnlyImport?.mode === 'IDENTITY_SCHEDULE' && importedTimingIssues(context, !context.zipAnnualSource.semesterPlans.some(plan=>plan.id===context.academicSetting.id)).length===0;
-  const notice = frozenNotice || (targetTimingApproved ? undefined : context.zipAnnualSource?.yearPlan.identityOnlyImport?.timingIsSourceReference
+  const notice = frozenNotice || (context.productionMode || targetTimingApproved ? undefined : context.zipAnnualSource?.yearPlan.identityOnlyImport?.timingIsSourceReference
     ? 'Kalender, JP, dan jadwal adalah data sumber; belum diverifikasi untuk sekolah tujuan.' : effective.academicSetting?.planningReferenceNotice);
-  return maskExportIdentity(notice || targetTimingApproved ? { ...effective, academicSetting: { ...effective.academicSetting, planningReferenceNotice: notice } } : effective);
+  return maskExportIdentity(notice || targetTimingApproved || context.productionMode ? { ...effective, academicSetting: { ...effective.academicSetting, planningReferenceNotice: notice } } : effective);
 }
 
 function resolveSnapshotContext(

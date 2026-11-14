@@ -124,10 +124,12 @@ export async function generatePdfDocument(
   const context = resolveEffectiveContext(rawContext);
   const validation = validateDocumentRequirements(type, context);
   if (!validation.isValid) throw new Error(validation.message || validation.missingFields.join('; '));
-  const identityIssue = sourceIdentityExportIssue(type, context);
-  if (identityIssue) throw new Error(identityIssue);
-  const importIssue = importDocumentPolicyIssue(type, context);
-  if (importIssue) throw new Error(importIssue);
+  if (!context.productionMode) {
+    const identityIssue = sourceIdentityExportIssue(type, context);
+    if (identityIssue) throw new Error(identityIssue);
+    const importIssue = importDocumentPolicyIssue(type, context);
+    if (importIssue) throw new Error(importIssue);
+  }
 
   if (type === 'ASESMEN') {
     const result = await exportAssessmentPdf(context, {

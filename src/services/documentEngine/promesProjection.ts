@@ -126,7 +126,10 @@ export function buildPromesProjection(context: DocumentGenerationContext): Prome
 
   // Calendar Capacity Analysis
   const hasCalendar = Boolean(calendar?.startDate && calendar?.endDate);
-  const isCalendarConfirmed = calendar?.workflowStatus === 'CONFIRMED';
+  const isCalendarConfirmed = Boolean(
+    calendar?.workflowStatus === 'CONFIRMED' ||
+      (context.productionMode && hasCalendar && (calendar?.schoolDaysPerWeek === 5 || calendar?.schoolDaysPerWeek === 6))
+  );
 
   let effectiveLearningDays: number | null = null;
   let effectiveWeeksEquivalent: number | null = null;
@@ -153,7 +156,8 @@ export function buildPromesProjection(context: DocumentGenerationContext): Prome
         : 18;
 
     const capacity = resolveCalendarSubjectCapacity({ semesterPlanId: academicSetting.id, calendar, calendarDays,
-      weeklyJP: actualScheduledWeeklyJP, schedule: context.subjectWeeklySchedule });
+      weeklyJP: actualScheduledWeeklyJP, schedule: context.subjectWeeklySchedule,
+      allowUnconfirmedCalendar: Boolean(context.productionMode) });
     availableJP = capacity.availableJP;
   }
 

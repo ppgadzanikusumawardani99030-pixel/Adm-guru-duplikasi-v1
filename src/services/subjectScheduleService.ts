@@ -311,8 +311,9 @@ export function resolveEffectiveSubjectSlots(params: {
   calendar?: AcademicCalendar;
   calendarDays?: CalendarDay[];
   schoolDaysPerWeek?: number | null;
+  allowUnconfirmedCalendar?: boolean;
 }): EffectiveSubjectSlotResult {
-  const { semesterPlanId, schedule, expectedWeeklyJP, calendar, calendarDays = [], schoolDaysPerWeek } = params;
+  const { semesterPlanId, schedule, expectedWeeklyJP, calendar, calendarDays = [], schoolDaysPerWeek, allowUnconfirmedCalendar = false } = params;
 
   const validation = validateSubjectWeeklySchedule(schedule, expectedWeeklyJP, calendar?.schoolDaysPerWeek ?? schoolDaysPerWeek);
 
@@ -324,7 +325,7 @@ export function resolveEffectiveSubjectSlots(params: {
     calendar.startDate &&
     calendar.endDate &&
     (calendar.schoolDaysPerWeek === 5 || calendar.schoolDaysPerWeek === 6) &&
-    calendar.workflowStatus === 'CONFIRMED' &&
+    (allowUnconfirmedCalendar || calendar.workflowStatus === 'CONFIRMED') &&
     Array.isArray(calendarDays) &&
     calendarDays.length > 0
   );

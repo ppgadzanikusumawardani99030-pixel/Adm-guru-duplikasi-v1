@@ -40,6 +40,7 @@ export interface AssessmentPackageValidationContext {
   tp?: TPData;
   k13Analysis?: K13Analysis;
   assessmentCriteria?: AssessmentCriterion[];
+  allowDraftWorkflow?: boolean;
 }
 
 export interface ValidationResult {
@@ -131,11 +132,13 @@ export function validateAssessmentPackage(
     errors.push('Parent AssessmentPlan tidak ditemukan atau referensi ID tidak valid.');
   } else {
     const parentPlan = context.assessmentPlan;
-    if (parentPlan.workflowStatus !== 'SIAP') {
-      errors.push(`Rencana Asesmen induk "${parentPlan.title}" belum berstatus SIAP.`);
-    }
-    if (parentPlan.needsReview) {
-      errors.push(`Rencana Asesmen induk "${parentPlan.title}" masih memerlukan peninjauan ulang.`);
+    if (!context.allowDraftWorkflow) {
+      if (parentPlan.workflowStatus !== 'SIAP') {
+        errors.push(`Rencana Asesmen induk "${parentPlan.title}" belum berstatus SIAP.`);
+      }
+      if (parentPlan.needsReview) {
+        errors.push(`Rencana Asesmen induk "${parentPlan.title}" masih memerlukan peninjauan ulang.`);
+      }
     }
 
     // Instrument Type Coherence with Parent Plan
@@ -285,7 +288,7 @@ export function validateAssessmentPackage(
     } else if (curType === 'KURIKULUM_MERDEKA') {
       if (!context.tp || !context.tp.items) {
         errors.push('Sumber data TP (TPData) tidak tersedia atau tidak dapat diverifikasi.');
-      } else if (context.tp.workflowStatus !== 'SIAP' || context.tp.needsReview) {
+      } else if (!context.allowDraftWorkflow && (context.tp.workflowStatus !== 'SIAP' || context.tp.needsReview)) {
         errors.push('Sumber data TP belum SIAP atau masih memerlukan peninjauan ulang.');
       } else {
         const validObjectiveIds = new Set(context.tp.items.map((t) => t.id));
@@ -356,7 +359,7 @@ export function validateAssessmentPackage(
           const criterion = context.assessmentCriteria.find((c) => c.id === bp.criterionId);
           if (!criterion) {
             errors.push(`Butir kisi-kisi #${idx + 1} merujuk pada kriteria KKTP [${bp.criterionId}] yang tidak ditemukan.`);
-          } else if (criterion.workflowStatus !== 'SIAP' || criterion.needsReview) {
+          } else if (!context.allowDraftWorkflow && (criterion.workflowStatus !== 'SIAP' || criterion.needsReview)) {
             errors.push(`Butir kisi-kisi #${idx + 1} merujuk pada kriteria KKTP [${bp.criterionId}] yang belum SIAP atau perlu ditinjau ulang.`);
           }
         }

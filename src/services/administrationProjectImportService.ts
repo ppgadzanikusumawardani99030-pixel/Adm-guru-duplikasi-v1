@@ -252,25 +252,33 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
   };
   const imported = remap(graph) as typeof graph;
   const year = imported.yearPlans[0];
+  const isProductionMode = Boolean(options.productionMode);
+  const preserveFactualData = isProductionMode && options.preserveFactualData !== false;
   if (targetClass) { year.grade = targetClass.grade; year.phase = targetClass.phase.replace(/^Fase\s*/i,''); year.classSection = targetSection; }
   const warnings: string[] = [];
   if (modernMode) {
     const identityValues = (owner: typeof profile, campus: typeof school) => [owner.name, owner.nip, campus.name, campus.npsn, campus.address, campus.principalName, campus.principalNip].filter((value): value is string => Boolean(value?.trim())).map(value => value.trim());
     const destinationValues = new Set(identityValues(profile, school).map(value => value.toLocaleLowerCase('id')));
-    year.identityOnlyImport = { importedAt: new Date().toISOString(), timingIsSourceReference: true, factualDataExcluded: true,
+    year.identityOnlyImport = { importedAt: new Date().toISOString(), timingIsSourceReference: !isProductionMode, factualDataExcluded: !preserveFactualData,
       mode: options.mode as NonNullable<YearPlan['identityOnlyImport']>['mode'], sourceGrade: sourceYear.grade, sourcePhase: sourceYear.phase,
       sourceIdentityTokens: [...new Set([...(sourceYear.identityOnlyImport?.sourceIdentityTokens || []), ...identityValues(source.profiles[0], source.schools[0])])].filter(value => !destinationValues.has(value.toLocaleLowerCase('id'))) };
     for (const workspace of imported.workspaces) {
       workspace.documentDate = options.documentDate;
       workspace.name = `${year.subject} — ${year.grade}${year.classSection ? ' '+year.classSection : ''} — ${profile.name}`;
     }
-    for (const entry of imported.semesterData.academicCalendar) entry.value.calendar.actionableMessage = 'Data sumber impor; kalender dan waktu belum diverifikasi untuk sekolah tujuan.';
+    if (!isProductionMode) {
+      for (const entry of imported.semesterData.academicCalendar) entry.value.calendar.actionableMessage = 'Data sumber impor; kalender dan waktu belum diverifikasi untuk sekolah tujuan.';
+    }
     // Generated documents are regenerated with target identity; historical source snapshots stay in the source archive.
     imported.documents = [];
     visitProject([imported.annualData, imported.semesterData], node => { delete node.snapshot; });
-    for (const key of ['roster', 'attendance', 'grade', 'remedial', 'enrichment', 'journalRealizations']) (imported.semesterData as any)[key] = [];
-    warnings.push('Kalender, JP, jadwal, dan alokasi dipertahankan sebagai data sumber; belum diverifikasi untuk sekolah tujuan.',
-      'Siswa, presensi, nilai, remedial/pengayaan, dan catatan pelaksanaan tidak disalin ke proyek tujuan. Arsip asal tetap utuh.');
+    if (!preserveFactualData) {
+      for (const key of ['roster', 'attendance', 'grade', 'remedial', 'enrichment', 'journalRealizations']) (imported.semesterData as any)[key] = [];
+      warnings.push('Siswa, presensi, nilai, remedial/pengayaan, dan catatan pelaksanaan tidak disalin ke proyek tujuan. Arsip asal tetap utuh.');
+    }
+    if (!isProductionMode) {
+      warnings.push('Kalender, JP, jadwal, dan alokasi dipertahankan sebagai data sumber; belum diverifikasi untuk sekolah tujuan.');
+    }
     // Slot IDs contain IDs as well as dates. Rebase only exact canonical representations;
     // the unchanged full schedule validator below still detects source staleness/invalid dates/JP.
     for (const old of source.semesterData.learningMeetingSchedules || []) {
@@ -285,34 +293,48 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
     }
   }
   if (options.mode === 'COPY') {
-    // Source calendars remain inspectable; dated schedules and confirmations need target-school review.
-    warnings.push('Kalender, JP, pola jadwal, dan alokasi waktu disalin sebagai rujukan; konfirmasi ulang pada sekolah tujuan.');
-    for (const entry of imported.semesterData.academicCalendar) {
-      entry.value.calendar.workflowStatus = 'UNRESOLVED';
-      entry.value.calendar.reviewStatus = 'UNREVIEWED';
-      entry.value.calendar.confirmedAt = undefined;
-      entry.value.calendar.reviewedAt = undefined;
-      entry.value.calendar.actionableMessage = 'Tinjau kalender sekolah tujuan dan konfirmasi ulang setelah penyalinan proyek.';
+    if (isProductionMode) {
+      if (isValidDocumentDate(options.documentDate)) {
+        for (const workspace of imported.workspaces) {
+          workspace.documentDate = options.documentDate;
+          workspace.name = `${year.subject} — ${year.grade}${year.classSection ? ' '+year.classSection : ''} — ${profile.name}`;
+        }
+      }
+      imported.documents = [];
+      visitProject([imported.annualData, imported.semesterData], node => { delete node.snapshot; });
+      if (!preserveFactualData) {
+        for (const key of ['roster', 'attendance', 'grade', 'remedial', 'enrichment', 'journalRealizations']) (imported.semesterData as any)[key] = [];
+      }
+    } else {
+      // Source calendars remain inspectable; dated schedules and confirmations need target-school review.
+      warnings.push('Kalender, JP, pola jadwal, dan alokasi waktu disalin sebagai rujukan; konfirmasi ulang pada sekolah tujuan.');
+      for (const entry of imported.semesterData.academicCalendar) {
+        entry.value.calendar.workflowStatus = 'UNRESOLVED';
+        entry.value.calendar.reviewStatus = 'UNREVIEWED';
+        entry.value.calendar.confirmedAt = undefined;
+        entry.value.calendar.reviewedAt = undefined;
+        entry.value.calendar.actionableMessage = 'Tinjau kalender sekolah tujuan dan konfirmasi ulang setelah penyalinan proyek.';
+      }
+      for (const entry of imported.semesterData.learningMeetingSchedules || []) {
+        entry.value.status = 'DRAFT';
+        entry.value.unresolvedMeetingIds = Array.from(new Set([...entry.value.unresolvedMeetingIds, ...entry.value.entries.map(e => e.meetingId)]));
+        entry.value.entries = [];
+      }
+      for (const entry of imported.semesterData.learningPlan) for (const plan of entry.value) {
+        plan.status = 'DRAFT'; plan.confirmedAt = undefined;
+      }
+      for (const entry of imported.semesterData.assessmentPlan) for (const plan of entry.value) {
+        plan.confirmedAt = undefined;
+        plan.workflowStatus = 'DRAFT';
+        plan.needsReview = true;
+      }
+      for (const entry of imported.semesterData.assessmentPackage) for (const pkg of entry.value) {
+        pkg.workflowStatus = 'DRAFT';
+        pkg.needsReview = true;
+        pkg.reviewReason = [pkg.reviewReason, 'Tinjau perangkat asesmen pada profil/sekolah tujuan setelah import.'].filter(Boolean).join(' ');
+      }
+      for (const doc of imported.documents) { doc.status = 'draft'; delete doc.snapshot; }
     }
-    for (const entry of imported.semesterData.learningMeetingSchedules || []) {
-      entry.value.status = 'DRAFT';
-      entry.value.unresolvedMeetingIds = Array.from(new Set([...entry.value.unresolvedMeetingIds, ...entry.value.entries.map(e => e.meetingId)]));
-      entry.value.entries = [];
-    }
-    for (const entry of imported.semesterData.learningPlan) for (const plan of entry.value) {
-      plan.status = 'DRAFT'; plan.confirmedAt = undefined;
-    }
-    for (const entry of imported.semesterData.assessmentPlan) for (const plan of entry.value) {
-      plan.confirmedAt = undefined;
-      plan.workflowStatus = 'DRAFT';
-      plan.needsReview = true;
-    }
-    for (const entry of imported.semesterData.assessmentPackage) for (const pkg of entry.value) {
-      pkg.workflowStatus = 'DRAFT';
-      pkg.needsReview = true;
-      pkg.reviewReason = [pkg.reviewReason, 'Tinjau perangkat asesmen pada profil/sekolah tujuan setelah import.'].filter(Boolean).join(' ');
-    }
-    for (const doc of imported.documents) { doc.status = 'draft'; delete doc.snapshot; }
   }
   next.yearPlans.push(...imported.yearPlans);
   next.workspaces.push(...imported.workspaces);
@@ -323,7 +345,10 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
   for (const key of Object.keys(imported.semesterData)) ((next.semesterData as any)[key] ||= []).push(...(imported.semesterData as any)[key]);
   next.documents.push(...imported.documents);
   next.activeProfileId = profile.id; next.activeYearPlanId = year.id;
-  next.activeWorkspaceId = imported.workspaces[0]?.id; next.activeSemesterPlanId = imported.semesterPlans[0]?.id;
+  next.activeWorkspaceId = imported.workspaces[0]?.id;
+  next.activeSemesterPlanId = isProductionMode
+    ? (imported.semesterPlans.find(s => s.semester === 1)?.id || imported.semesterPlans[0]?.id)
+    : imported.semesterPlans[0]?.id;
   validateStorageStateV5(next);
   const mapping = imported.annualData.atpUnitMappings?.[0]?.value;
   const execution = imported.annualData.unitExecutionPlans?.[0]?.value;
@@ -349,29 +374,31 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
       throw new Error('IMPORT_LINEAGE_CHANGED: kesiapan struktural Bab/Materi berubah saat remap. Import dibatalkan.');
     }
   }
-  if (cp) { const check = validateCPDataWorkflow(cp, year); cp.workflowStatus = check.status; warnings.push(...check.issues); }
-  if (analysis) { const check = validateCPAnalysisDataWorkflow(analysis, cp); analysis.workflowStatus = check.status; warnings.push(...check.issues); }
-  if (tp) {
-    const check = validateTPDataWorkflow(tp, cp, analysis);
-    tp.workflowStatus = check.status === 'SIAP' && sourceTp?.workflowStatus !== 'SIAP'
-      ? sourceTp?.workflowStatus || 'DRAFT' : check.status;
-    warnings.push(...check.issues);
-  }
-  if (atp) { const check = validateATPDataWorkflow(atp, tp, undefined, cp, analysis); atp.workflowStatus = check.status; warnings.push(...check.issues); }
-  if (modernMode) {
-    for (const key of ['cp', 'cpAnalysis', 'tp', 'atp'] as const) {
-      const before = source.annualData[key][0]?.value;
-      const after = imported.annualData[key][0]?.value;
-      if (after?.workflowStatus === 'SIAP' && before?.workflowStatus !== 'SIAP') after.workflowStatus = before?.workflowStatus || 'DRAFT';
-    }
-  }
   const compatibility = classImportCompatibility(year,cp,tp,atp);
-  if (!compatibility.cpCompatible && cp) {
-    cp.workflowStatus = 'PERLU_DILENGKAPI';
-    if (analysis) { analysis.needsReview = true; analysis.reviewReason = compatibility.reasons[0]; analysis.workflowStatus = 'PERLU_DILENGKAPI'; }
+  if (!isProductionMode) {
+    if (cp) { const check = validateCPDataWorkflow(cp, year); cp.workflowStatus = check.status; warnings.push(...check.issues); }
+    if (analysis) { const check = validateCPAnalysisDataWorkflow(analysis, cp); analysis.workflowStatus = check.status; warnings.push(...check.issues); }
+    if (tp) {
+      const check = validateTPDataWorkflow(tp, cp, analysis);
+      tp.workflowStatus = check.status === 'SIAP' && sourceTp?.workflowStatus !== 'SIAP'
+        ? sourceTp?.workflowStatus || 'DRAFT' : check.status;
+      warnings.push(...check.issues);
+    }
+    if (atp) { const check = validateATPDataWorkflow(atp, tp, undefined, cp, analysis); atp.workflowStatus = check.status; warnings.push(...check.issues); }
+    if (modernMode) {
+      for (const key of ['cp', 'cpAnalysis', 'tp', 'atp'] as const) {
+        const before = source.annualData[key][0]?.value;
+        const after = imported.annualData[key][0]?.value;
+        if (after?.workflowStatus === 'SIAP' && before?.workflowStatus !== 'SIAP') after.workflowStatus = before?.workflowStatus || 'DRAFT';
+      }
+    }
+    if (!compatibility.cpCompatible && cp) {
+      cp.workflowStatus = 'PERLU_DILENGKAPI';
+      if (analysis) { analysis.needsReview = true; analysis.reviewReason = compatibility.reasons[0]; analysis.workflowStatus = 'PERLU_DILENGKAPI'; }
+    }
+    if (!compatibility.tpCompatible && tp) { tp.needsReview = true; tp.reviewReason = compatibility.reasons.join('; '); tp.workflowStatus = 'PERLU_DILENGKAPI'; }
+    if (!compatibility.atpCompatible && atp) { atp.needsReview = true; atp.reviewReason = compatibility.reasons.join('; '); atp.workflowStatus = 'PERLU_DILENGKAPI'; }
   }
-  if (!compatibility.tpCompatible && tp) { tp.needsReview = true; tp.reviewReason = compatibility.reasons.join('; '); tp.workflowStatus = 'PERLU_DILENGKAPI'; }
-  if (!compatibility.atpCompatible && atp) { atp.needsReview = true; atp.reviewReason = compatibility.reasons.join('; '); atp.workflowStatus = 'PERLU_DILENGKAPI'; }
   warnings.push(...compatibility.reasons);
   if (mapping) warnings.push(...validateATPUnitMappingCanonical(mapping, imported.annualData.atp[0]?.value, imported.annualData.tp[0]?.value).issues);
   if (mapping && execution) warnings.push(...validateUnitExecutionPlan(execution, mapping, imported.annualData.atp[0]?.value, imported.annualData.tp[0]?.value).errors);
@@ -385,8 +412,10 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
       const checked = validateCalendarCompleteness(calendar.calendar, calendar.days);
       if (!checked.complete) {
         warnings.push(`Semester ${semester.semester}: ${checked.diagnostic}`);
-        calendar.calendar.workflowStatus = 'UNRESOLVED';
-        calendar.calendar.confirmedAt = undefined;
+        if (!isProductionMode) {
+          calendar.calendar.workflowStatus = 'UNRESOLVED';
+          calendar.calendar.confirmedAt = undefined;
+        }
       }
     }
     if (weekly) warnings.push(...validateSubjectWeeklySchedule(weekly, jp).errors);
@@ -394,10 +423,10 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
       const checked = validateLearningMeetingScheduleData({ data: schedule, semester: semester.semester, mapping,
         unitExecutionPlan: execution, subjectWeeklySchedule: weekly, expectedWeeklyJP: jp, calendar: calendar.calendar, calendarDays: calendar.days });
       warnings.push(...checked.errors);
-      if (!checked.isValid || checked.isStale) schedule.status = 'DRAFT';
+      if (!isProductionMode && (!checked.isValid || checked.isStale)) schedule.status = 'DRAFT';
     }
   }
-  if (modernMode) {
+  if (modernMode && !isProductionMode) {
     const base = buildImportedProjectExportContext(next, year.id);
     const upstreamMapping = resolveATPUnitMappingReadiness(mapping, atp, tp);
     for (const { context } of resolveAnnualZipContexts(base).semesters) {
@@ -419,7 +448,7 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
       }
     }
   }
-  if (options.mode === 'IDENTITY_SCHEDULE') {
+  if (options.mode === 'IDENTITY_SCHEDULE' && !isProductionMode) {
     // Keep proven-valid content/statuses. Target approval is pending only for time dependencies.
     for (const entry of imported.semesterData.academicCalendar) { entry.value.calendar.workflowStatus = 'UNRESOLVED'; entry.value.calendar.reviewStatus = 'UNREVIEWED'; entry.value.calendar.confirmedAt = undefined; entry.value.calendar.reviewedAt = undefined; }
     for (const entry of imported.semesterJPSettings) entry.value.source = 'UNRESOLVED';
@@ -434,7 +463,9 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
       : 'Cakupan Bab/Materi tetap sama; Step 07 memerlukan peninjauan status/freshness TP/ATP.');
     warnings.push(...targetReadiness.blockers);
   }
-  const nextStep = !compatibility.cpCompatible || cp?.workflowStatus !== 'SIAP' ? 'cp' : analysis?.workflowStatus !== 'SIAP' ? 'cp-analysis' : tp?.workflowStatus !== 'SIAP' ? 'tp' : atp?.workflowStatus !== 'SIAP' ? 'atp' : !targetReadiness.canProceed ? 'atp-mapping' : options.mode === 'IDENTITY_SCHEDULE' ? 'annual-planning' : 'admin';
+  const nextStep = isProductionMode
+    ? 'admin'
+    : !compatibility.cpCompatible || cp?.workflowStatus !== 'SIAP' ? 'cp' : analysis?.workflowStatus !== 'SIAP' ? 'cp-analysis' : tp?.workflowStatus !== 'SIAP' ? 'tp' : atp?.workflowStatus !== 'SIAP' ? 'atp' : !targetReadiness.canProceed ? 'atp-mapping' : options.mode === 'IDENTITY_SCHEDULE' ? 'annual-planning' : 'admin';
   return { state: next, yearPlanId: year.id, mode: options.mode, nextStep, compatibility, warnings: Array.from(new Set(warnings)),
     step7: { origin, source: sourceReadiness, target: targetReadiness } };
 }

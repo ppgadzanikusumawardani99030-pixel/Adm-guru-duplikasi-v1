@@ -298,6 +298,7 @@ export interface ValidateLearningMeetingScheduleParams {
   expectedWeeklyJP: number;
   calendar: AcademicCalendar;
   calendarDays: CalendarDay[];
+  allowUnconfirmedCalendar?: boolean;
 }
 
 export interface ValidateLearningMeetingScheduleResult {
@@ -322,6 +323,7 @@ export function validateLearningMeetingScheduleData(
     expectedWeeklyJP,
     calendar,
     calendarDays,
+    allowUnconfirmedCalendar = false,
   } = params;
 
   // 1. Basic structural checks
@@ -494,6 +496,7 @@ export function validateLearningMeetingScheduleData(
     calendar,
     calendarDays,
     schoolDaysPerWeek: calendar.schoolDaysPerWeek,
+    allowUnconfirmedCalendar,
   });
 
   if (!subjectSlotResult.isValid || !subjectSlotResult.isReady) {
@@ -761,6 +764,7 @@ export function isLearningMeetingScheduleReady(params: {
   expectedWeeklyJP: number | null | undefined;
   calendar: AcademicCalendar | null | undefined;
   calendarDays?: CalendarDay[];
+  allowUnconfirmedCalendar?: boolean;
 }): ExactScheduleReadinessResult {
   const {
     schedule,
@@ -771,6 +775,7 @@ export function isLearningMeetingScheduleReady(params: {
     expectedWeeklyJP,
     calendar,
     calendarDays = [],
+    allowUnconfirmedCalendar = false,
   } = params;
 
   if (!schedule) {
@@ -821,6 +826,7 @@ export function isLearningMeetingScheduleReady(params: {
     expectedWeeklyJP,
     calendar,
     calendarDays,
+    allowUnconfirmedCalendar,
   });
 
   return {

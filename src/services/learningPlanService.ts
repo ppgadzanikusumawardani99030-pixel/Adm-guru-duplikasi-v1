@@ -984,6 +984,7 @@ export function validateLearningPlan(
     k13Analysis?: K13Analysis | null;
     timeAllocations?: TimeAllocation[] | null;
     assessmentCriteria?: AssessmentCriterion[] | null;
+    allowDraftWorkflow?: boolean;
   } & LearningPlanActualTimeContext
 ): LearningPlanValidationResult {
   const draftErrors: string[] = [];
@@ -1027,12 +1028,12 @@ export function validateLearningPlan(
 
   if (plan.curriculumType === 'KURIKULUM_MERDEKA') {
     if (plan.tpIds && plan.tpIds.length > 0) {
-      if (!context.tp || context.tp.workflowStatus !== 'SIAP' || context.tp.needsReview) {
+      if (!context.tp || (!context.allowDraftWorkflow && (context.tp.workflowStatus !== 'SIAP' || context.tp.needsReview))) {
         errors.push('TP acuan belum SIAP atau masih memerlukan peninjauan ulang.');
       }
     }
     if (plan.atpItemIds && plan.atpItemIds.length > 0) {
-      if (!context.atp || context.atp.workflowStatus !== 'SIAP' || context.atp.needsReview) {
+      if (!context.atp || (!context.allowDraftWorkflow && (context.atp.workflowStatus !== 'SIAP' || context.atp.needsReview))) {
         errors.push('ATP acuan belum SIAP atau masih memerlukan peninjauan ulang.');
       } else {
         const availableAtpItems: ATPItem[] = context.atp.items || [];
@@ -1148,8 +1149,9 @@ export function validateLearningPlan(
       semester: activeSchedule?.semester || 1, mapping: context.atpUnitMapping, unitExecutionPlan: context.unitExecutionPlan,
       subjectWeeklySchedule: context.subjectWeeklySchedule,
       expectedWeeklyJP: resolveSemesterJPFromValues(context.semesterJPSetting, context.annualJPReference).weeklyJP,
-      calendar: context.calendar, calendarDays: context.calendarDays });
-    actualTimeNeedsReview = !readiness.isReady || context.calendar?.workflowStatus !== 'CONFIRMED';
+      calendar: context.calendar, calendarDays: context.calendarDays,
+      allowUnconfirmedCalendar: Boolean(context.allowDraftWorkflow) });
+    actualTimeNeedsReview = !readiness.isReady || (!context.allowDraftWorkflow && context.calendar?.workflowStatus !== 'CONFIRMED');
     if (actualTimeNeedsReview) errors.push('Jadwal aktual perlu ditinjau sebelum memvalidasi durasi: ' + readiness.errors.join('; '));
   }
 
@@ -1594,7 +1596,7 @@ export function validateLearningPlan(
   (jpResolution.issues || []).forEach((issue) => warnings.push(issue));
 
   // 10. Lifecycle & Status Validation
-  if (plan.status === 'SIAP') {
+  if (plan.status === 'SIAP' && !context.allowDraftWorkflow) {
     if (draftErrors.length > 0) {
       finalizationErrors.push('Status SIAP tidak valid karena masih terdapat kesalahan integritas data draf.');
     }
@@ -1676,6 +1678,7 @@ export function validateLearningPlanForModulAjar(
     k13Analysis?: K13Analysis | null;
     timeAllocations?: TimeAllocation[] | null;
     assessmentCriteria?: AssessmentCriterion[] | null;
+    allowDraftWorkflow?: boolean;
   } & LearningPlanActualTimeContext
 ): LearningPlanValidationResult {
   const canonicalResult = validateLearningPlan(plan, context);

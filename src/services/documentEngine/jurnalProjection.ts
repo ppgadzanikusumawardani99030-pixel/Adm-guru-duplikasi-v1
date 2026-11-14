@@ -72,7 +72,13 @@ export function buildJurnalProjection(context: DocumentGenerationContext): Jurna
         if (records.length < roster.size) attendance += `\nBelum dicatat: ${roster.size-records.length}`;
       }
     }
-    const plans = (context.learningPlans || []).filter(plan => plan.academicSettingId === semesterPlanId && plan.unitId === row.unitId && plan.status === 'SIAP' && plan.learningMeetingIds?.includes(row.meetingId));
+    const plans = (context.learningPlans || []).filter(
+      (plan) =>
+        plan.academicSettingId === semesterPlanId &&
+        plan.unitId === row.unitId &&
+        (context.productionMode || plan.status === 'SIAP') &&
+        plan.learningMeetingIds?.includes(row.meetingId)
+    );
     const plannedActivities = plans.length === 1 ? Object.values(plans[0].learningSteps || {}).flat().filter(activity => activity.learningMeetingId === row.meetingId).map(activity => activity.description).filter(Boolean) : [];
     result.rows.push({ meetingId: row.meetingId, semesterPlanId, unitId: row.unitId, unitTitle: row.unitTitle,
       materialIds: row.materials.map(m => m.id), materialTitles: row.materials.map(m => m.title),

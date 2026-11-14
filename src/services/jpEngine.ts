@@ -1571,8 +1571,9 @@ export function resolveCalendarSubjectCapacity(params: {
   calendarDays?: CalendarDay[];
   weeklyJP: number | null;
   schedule?: SubjectWeeklySchedule;
+  allowUnconfirmedCalendar?: boolean;
 }) {
-  const { semesterPlanId, calendar, calendarDays = [], weeklyJP, schedule } = params;
+  const { semesterPlanId, calendar, calendarDays = [], weeklyJP, schedule, allowUnconfirmedCalendar = false } = params;
   const days = calendar ? calculateEffectiveDays(calendar, calendarDays) : null;
   const estimate = calculateAvailableJP({
     subjectWeeklyJP: weeklyJP,
@@ -1610,6 +1611,7 @@ export function resolveCalendarSubjectCapacity(params: {
       calendar,
       calendarDays,
       schoolDaysPerWeek: calendar.schoolDaysPerWeek,
+      allowUnconfirmedCalendar,
     });
     if (!slots.isReady || schedule?.semesterPlanId !== semesterPlanId) {
       return {

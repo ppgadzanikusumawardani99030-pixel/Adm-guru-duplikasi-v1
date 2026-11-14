@@ -21,7 +21,7 @@ export interface CurriculumContextLock {
  * Must NOT contain semester authority or activeSemester fields.
  */
 export interface YearPlan {
-  identityOnlyImport?: { importedAt: string; timingIsSourceReference: true; factualDataExcluded: true; sourceIdentityTokens?: string[];
+  identityOnlyImport?: { importedAt: string; timingIsSourceReference: boolean; factualDataExcluded: boolean; sourceIdentityTokens?: string[];
     mode?: 'IDENTITY_ONLY' | 'IDENTITY_SCHEDULE' | 'OTHER_CLASS' | 'CONTINUE_EDITING'; sourceGrade?: string; sourcePhase?: string };
   id: string;
   profileId: string;

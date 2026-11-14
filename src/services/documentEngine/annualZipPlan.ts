@@ -92,8 +92,24 @@ export function resolveAnnualZipContexts(base: DocumentGenerationContext): {
     return [{ semester, semesterPlanId: context.academicSetting.id, schedule: entries[0].value }];
   });
   annual.learningMeetingSchedules = schedules;
-  annual.protaSemesterAllocations = semesters.map(({ semester, context }) => ({ semester, semesterPlanId: context.academicSetting.id, allocations: context.timeAllocations || [],
-    capacityJP: context.calendar?.workflowStatus === 'CONFIRMED' ? resolveCalendarSubjectCapacity({ semesterPlanId: context.academicSetting.id, calendar: context.calendar, calendarDays: context.calendarDays, schedule: context.subjectWeeklySchedule, weeklyJP: resolveSemesterJPFromValues(context.semesterJPSetting, context.annualJPReference).weeklyJP }).availableJP : null }));
+  annual.protaSemesterAllocations = semesters.map(({ semester, context }) => ({
+    semester,
+    semesterPlanId: context.academicSetting.id,
+    allocations: context.timeAllocations || [],
+    capacityJP:
+      (context.productionMode
+        ? Boolean(context.calendar?.startDate && context.calendar?.endDate && (context.calendar.schoolDaysPerWeek === 5 || context.calendar.schoolDaysPerWeek === 6))
+        : context.calendar?.workflowStatus === 'CONFIRMED')
+        ? resolveCalendarSubjectCapacity({
+            semesterPlanId: context.academicSetting.id,
+            calendar: context.calendar,
+            calendarDays: context.calendarDays,
+            schedule: context.subjectWeeklySchedule,
+            weeklyJP: resolveSemesterJPFromValues(context.semesterJPSetting, context.annualJPReference).weeklyJP,
+            allowUnconfirmedCalendar: Boolean(context.productionMode),
+          }).availableJP
+        : null,
+  }));
   semesters.forEach(({ context }) => {
     context.learningMeetingSchedules = schedules;
     context.protaSemesterAllocations = annual.protaSemesterAllocations;

@@ -52,6 +52,7 @@ interface WorkflowStepperProps {
   activeSemesterPlan?: SemesterPlan;
   k13Analysis?: K13Analysis;
   k13KKM?: K13KKM;
+  productionMode?: boolean;
 }
 
 export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
@@ -69,11 +70,13 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
   activeSemesterPlan,
   k13Analysis,
   k13KKM,
+  productionMode = false,
 }) => {
   const curType = getCurriculumTypeFromSetting(academicSetting);
   const isK13Active = curType === 'K13';
   const isMerdekaActive = curType === 'KURIKULUM_MERDEKA';
   const hasSelectedSemester = !!activeSemesterPlan;
+  const hasActiveProject = Boolean(academicSetting?.academicYear && academicSetting?.subject);
 
   // Validate workflow dependencies centrally
   const validationReport = validateWorkflowDependencies({
@@ -171,11 +174,11 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
           title: 'ADMINISTRASI',
           sub: 'Perencanaan & Nilai',
           icon: <FileCheck2 className="w-4 h-4" />,
-          status: stepStates.admin.status,
+          status: productionMode && hasActiveProject ? 'READY' : stepStates.admin.status,
           isComplete: stepStates.admin.isComplete,
-          isLocked: stepStates.admin.isBlocked,
+          isLocked: productionMode && hasActiveProject ? false : stepStates.admin.isBlocked,
           isStale: stepStates.admin.isStale,
-          lockReason: stepStates.admin.reason,
+          lockReason: productionMode && hasActiveProject ? undefined : stepStates.admin.reason,
         },
       ]
     : isMerdekaActive
@@ -298,17 +301,23 @@ export const WorkflowStepper: React.FC<WorkflowStepperProps> = ({
           id: 'admin',
           num: '10',
           title: 'ADMINISTRASI',
-          sub: 'Pembelajaran, Asesmen & Dokumen',
+          sub: productionMode ? 'Pusat Dokumen (Mode Produksi)' : 'Pembelajaran, Asesmen & Dokumen',
           icon: <FileCheck2 className="w-4 h-4" />,
-          status: stepStates.admin.isBlocked
+          status: productionMode && hasActiveProject
+            ? 'READY'
+            : stepStates.admin.isBlocked
             ? 'BLOCKED'
             : !hasSelectedSemester
             ? 'BLOCKED'
             : stepStates.admin.status,
           isComplete: false,
-          isLocked: !hasSelectedSemester || stepStates.admin.isBlocked,
-          isStale: stepStates.admin.isStale,
-          lockReason: stepStates.admin.reason || (!hasSelectedSemester ? 'Pilih semester aktif terlebih dahulu' : undefined),
+          isLocked: productionMode && hasActiveProject
+            ? false
+            : !hasSelectedSemester || stepStates.admin.isBlocked,
+          isStale: productionMode ? false : stepStates.admin.isStale,
+          lockReason: productionMode && hasActiveProject
+            ? undefined
+            : stepStates.admin.reason || (!hasSelectedSemester ? 'Pilih semester aktif terlebih dahulu' : undefined),
         },
       ]
     : [

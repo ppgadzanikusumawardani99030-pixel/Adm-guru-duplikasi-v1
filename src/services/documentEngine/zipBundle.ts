@@ -545,6 +545,10 @@ export async function generateZipBundle(
     compressionOptions: { level: 6 },
   });
 
+  if (!zipBlob || zipBlob.size === 0) {
+    throw new Error('Arsip ZIP gagal dibuat atau berukuran 0 byte.');
+  }
+
   if (!rawContext.skipDownload) {
     saveAs(zipBlob, zipFileName);
   }

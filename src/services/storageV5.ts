@@ -934,14 +934,46 @@ export function parseBackupV5(jsonString: string): AppStorageStateV5 {
   return validateStorageStateV5(envelope.data);
 }
 
+export class StorageQuotaExceededError extends Error {
+  constructor(
+    message = 'Kapasitas penyimpanan browser (localStorage) penuh. Data lama Anda tetap aman dan tidak dihapus secara otomatis.'
+  ) {
+    super(message);
+    this.name = 'StorageQuotaExceededError';
+  }
+}
+
+export function isQuotaExceededError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { name?: string; code?: number; message?: string };
+  return (
+    err instanceof StorageQuotaExceededError ||
+    e.name === 'StorageQuotaExceededError' ||
+    e.name === 'QuotaExceededError' ||
+    e.name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    e.code === 22 ||
+    e.code === 1014 ||
+    (typeof e.message === 'string' && /quota|exceeded|storage.*full/i.test(e.message))
+  );
+}
+
 /**
  * Saves an AppStorageStateV5 to localStorage under STORAGE_KEY_V5.
- * Validates the state before writing.
+ * Validates the state before writing and translates quota failures into StorageQuotaExceededError
+ * without ever deleting existing user data.
  */
 export function saveStorageV5(state: AppStorageStateV5): void {
   const validated = validateStorageStateV5(state);
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY_V5, JSON.stringify(validated));
+    const serialized = JSON.stringify(validated);
+    try {
+      localStorage.setItem(STORAGE_KEY_V5, serialized);
+    } catch (err: unknown) {
+      if (isQuotaExceededError(err)) {
+        throw new StorageQuotaExceededError();
+      }
+      throw err;
+    }
   }
 }
 

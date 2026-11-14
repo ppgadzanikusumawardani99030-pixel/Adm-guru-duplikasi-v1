@@ -72,7 +72,8 @@ export async function generateKalenderAkademik(context: DocumentGenerationContex
     const eff = calculateEffectiveDays(calendar, daysList);
     effectiveDaysCount = eff.effectiveLearningDays;
     const avail = resolveCalendarSubjectCapacity({ semesterPlanId: academicSetting.id,
-      calendar, calendarDays: daysList, weeklyJP, schedule: context.subjectWeeklySchedule });
+      calendar, calendarDays: daysList, weeklyJP, schedule: context.subjectWeeklySchedule,
+      allowUnconfirmedCalendar: Boolean(context.productionMode) });
     effectiveWeeksCount = avail.effectiveWeeksRounded ?? 0;
     availableJPCount = avail.availableJP;
   }

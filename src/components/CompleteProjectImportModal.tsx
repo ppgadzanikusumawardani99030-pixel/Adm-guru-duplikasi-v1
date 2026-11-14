@@ -10,19 +10,21 @@ import { importCompleteAdministrationProject, importCompleteAdministrationProjec
 import { importedProjectExportReadiness } from '../services/identityOnlyProjectExport';
 import { generateZipBundle } from '../services/documentEngine';
 import type { ZipExportResult, ZipExportFormat } from '../services/documentEngine/types';
-import { loadStorageV5 } from '../services/storageV5';
+import { isQuotaExceededError, loadStorageV5, saveStorageV5 } from '../services/storageV5';
 import { getLocalTodayDocumentDate } from '../services/documentDateService';
 
 type ImportedView = Pick<ReturnType<typeof importCompleteAdministrationProject>, 'state' | 'yearPlanId' | 'warnings' | 'mode' | 'nextStep'>;
-export function CompleteProjectImportModal({ state, onClose, onSuccess, onContinue, importedYearPlanId }: {
+export function CompleteProjectImportModal({ state, onClose, onSuccess, onContinue, importedYearPlanId, productionMode = false }: {
   state: AppStorageStateV5; onClose: () => void;
-  onSuccess: (result: ReturnType<typeof importCompleteAdministrationProject>) => void;
+  onSuccess: (result: ReturnType<typeof importCompleteAdministrationProject>, quotaWarning?: string) => void;
   onContinue?: (step: ReturnType<typeof importCompleteAdministrationProject>['nextStep']) => void;
   importedYearPlanId?: string;
+  productionMode?: boolean;
 }) {
   const [archive, setArchive] = useState<CompleteProjectArchive>();
   const [profileId, setProfileId] = useState(state.activeProfileId || state.profiles[0]?.id || '');
   const [mode, setMode] = useState<CompleteProjectImportOptions['mode']>('IDENTITY_ONLY');
+  const [preserveFactualData, setPreserveFactualData] = useState(true);
   const submitting = useRef(false);
   const [documentDate] = useState(getLocalTodayDocumentDate());
   const [targetGrade, setTargetGrade] = useState('');
@@ -38,15 +40,21 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
   const [error, setError] = useState('');
   const profile = state.profiles.find(p => p.id === profileId);
   const legacyMode = mode === 'COPY' || mode === 'RESTORE';
-  const options: CompleteProjectImportOptions = { mode, targetProfileId: profileId, targetSchoolId: profile?.schoolId || '',
+  const options: CompleteProjectImportOptions = {
+    mode,
+    targetProfileId: profileId,
+    targetSchoolId: profile?.schoolId || '',
     documentDate,
+    productionMode,
+    preserveFactualData: productionMode ? preserveFactualData : false,
     ...(mode === 'OTHER_CLASS' ? { targetGrade, targetClassSection } : {}),
-    replaceYearPlanId: replace && mode === 'RESTORE' ? archive?.project.yearPlans[0].id : undefined };
+    replaceYearPlanId: replace && mode === 'RESTORE' ? archive?.project.yearPlans[0].id : undefined,
+  };
   const preview = useMemo(() => {
-    if (!archive || completed || mode === 'IDENTITY_ONLY') return undefined;
+    if (!archive || completed || (mode === 'IDENTITY_ONLY' && !productionMode)) return undefined;
     try { return { result: prepareCompleteAdministrationProjectImport(state, archive, options), error: '' }; }
     catch (e) { return { result: undefined, error: e instanceof Error ? e.message : String(e) }; }
-  }, [archive, state, mode, profileId, replace, documentDate, completed, targetGrade, targetClassSection]);
+  }, [archive, state, mode, profileId, replace, documentDate, completed, targetGrade, targetClassSection, productionMode, preserveFactualData]);
   const exportReadiness = useMemo(() => {
     if (!completed) return undefined;
     try { return { ...importedProjectExportReadiness(completed.state, completed.yearPlanId), error: '' }; }
@@ -65,7 +73,7 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
     ['Paket Asesmen', source.semesterData.assessmentPackage.reduce((n, e) => n + e.value.length, 0)],
     ['Siswa', source.semesterData.roster.reduce((n, e) => n + e.value.length, 0)],
   ] : [];
-  if (completed) return <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Ringkasan Kesiapan Ekspor">
+  if (completed && !productionMode) return <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Ringkasan Kesiapan Ekspor">
     <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-auto space-y-4" data-export-busy={busy ? 'true' : 'false'}>
       <h2 className="text-lg font-bold">Ringkasan Kesiapan Ekspor</h2>
       <p className="text-sm">Identitas tujuan dipakai untuk dokumen baru. Kalender/jadwal sumber tidak dianggap sesuai tujuan tanpa validasi. Data siswa, presensi, nilai, dan pelaksanaan tidak disalin.</p>
@@ -98,8 +106,13 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
   </div>;
   return <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Import Proyek Lengkap">
     <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-auto space-y-4" data-export-busy={busy ? 'true' : 'false'}>
-      <div className="flex justify-between items-center"><h2 className="text-lg font-bold">Import Proyek Lengkap</h2>
+      <div className="flex justify-between items-center"><h2 className="text-lg font-bold">{productionMode ? 'Impor Master Proyek ZIP (Mode Produksi)' : 'Import Proyek Lengkap'}</h2>
         <button type="button" title="Tutup" aria-label="Tutup" disabled={busy} onClick={onClose}><X size={20} /></button></div>
+      {productionMode && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-900">
+          Mode Produksi aktif: data master (CP, TP, ATP, Bab, Materi, Alokasi, Rencana) dipakai apa adanya dengan identitas tujuan, lalu langsung membuka Pusat Dokumen tanpa konfirmasi Step 01–07 atau AI.
+        </div>
+      )}
       <label className="block text-sm font-medium">Arsip Proyek (.zip)
         <input className="block mt-2 w-full" type="file" accept=".zip,application/zip" disabled={busy}
           onChange={async e => {
@@ -113,6 +126,20 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
       <fieldset className="grid sm:grid-cols-2 gap-3"><legend className="text-sm font-medium mb-2">Mode Impor Administrasi</legend>
         {ADMINISTRATION_IMPORT_MODES.map(item => <label key={item.mode} className="flex gap-2 text-sm border rounded p-3"><input type="radio" name="project-import-mode" value={item.mode} checked={mode===item.mode} disabled={busy} onChange={()=>{setMode(item.mode);setReplace(false);setConfirmed(false);}} /><span><strong>{item.title}</strong><small className="block">{item.description}</small></span></label>)}
       </fieldset>
+      {productionMode && (
+        <label className="flex items-start gap-2 text-xs bg-slate-50 border border-slate-200 rounded p-3">
+          <input
+            type="checkbox"
+            checked={preserveFactualData}
+            disabled={busy}
+            onChange={(e) => setPreserveFactualData(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <strong>Pertahankan data kelas/siswa/nilai/kehadiran dari master ZIP</strong> (jika dimatikan, hanya data perencanaan & perangkat ajar yang disalin).
+          </span>
+        </label>
+      )}
       <details className="text-xs"><summary>Kompatibilitas impor lama (COPY / RESTORE)</summary>{([['COPY','Salin ke Profil Lain'],['RESTORE','Pulihkan Proyek']] as const).map(([value,label])=><label key={value} className="block"><input type="radio" name="project-import-mode" value={value} disabled={busy} checked={mode===value} onChange={()=>{setMode(value);setReplace(false);setConfirmed(false);}} />{label}</label>)}</details>
       {mode==='OTHER_CLASS' && sourceYear && <div className="flex gap-3 flex-wrap"><label>Kelas tujuan<select value={targetGrade} disabled={busy} onChange={event=>setTargetGrade(event.target.value)} className="block border p-2">{(GRADE_PHASE_MAP[sourceYear.level] || []).map(item=><option key={item.grade} value={item.grade}>{item.grade} — {item.phase}</option>)}</select></label><label>Rombel tujuan<input aria-label="Rombel tujuan" value={targetClassSection} disabled={busy} onChange={event=>setTargetClassSection(event.target.value)} className="block border p-2" placeholder="Contoh: B" /></label></div>}
       <label className="block text-sm font-medium">Profil Guru Tujuan
@@ -125,7 +152,7 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
           <option value={profile?.schoolId || ''}>{state.schools.find(s => s.id === profile?.schoolId)?.name || 'Sekolah belum terhubung'}</option>
         </select></label>
       {source && <>
-        {preview?.result && <div role="status" className="text-sm border rounded-lg p-3 space-y-1">
+        {preview?.result && !productionMode && <div role="status" className="text-sm border rounded-lg p-3 space-y-1">
           <p className="font-semibold">Kesiapan Step 07</p>
           <p>Proyek asal: {preview.result.step7.source.canProceed ? 'Siap lanjut Step 08' : 'Perlu dilengkapi / ditinjau'}.</p>
           <p>Hasil import: {preview.result.step7.target.canProceed ? 'Siap lanjut Step 08 tanpa Analisis ulang' : 'Belum siap lanjut Step 08'}.</p>
@@ -148,7 +175,28 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
         disabled={busy || !archive || !profile?.schoolId || (legacyMode && (!confirmed || !preview?.result)) || (mode==='OTHER_CLASS' && (!targetGrade || !targetClassSection.trim()))} onClick={async () => {
           if (!archive || submitting.current) return; submitting.current = true; setBusy(true); setError('');
           try {
-            if (mode === 'IDENTITY_ONLY') {
+            if (productionMode) {
+              const prepared = prepareCompleteAdministrationProjectImport(state, archive, {
+                ...options,
+                productionMode: true,
+                preserveFactualData,
+              });
+              let quotaWarning: string | undefined;
+              try {
+                saveStorageV5(prepared.state);
+              } catch (persistErr) {
+                if (isQuotaExceededError(persistErr)) {
+                  quotaWarning = persistErr instanceof Error
+                    ? persistErr.message
+                    : 'Penyimpanan browser penuh (QuotaExceededError). Proyek aktif di memori sesi ini; data lama Anda tidak dihapus.';
+                } else {
+                  throw persistErr;
+                }
+              }
+              onSuccess(prepared, quotaWarning);
+              onContinue?.('admin');
+              onClose();
+            } else if (mode === 'IDENTITY_ONLY') {
               const flow = await importCompleteAdministrationProjectAndExport(archive, options);
               setCompleted(flow.imported); setZipResult(flow.zipResult); setError(flow.exportError); onSuccess(flow.imported);
             } else {
@@ -158,7 +206,7 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
           }
           catch (err) { setError(err instanceof Error ? err.message : String(err)); }
           finally { submitting.current = false; setBusy(false); }
-        }}><Upload size={16} />{busy ? 'Memproses...' : mode === 'IDENTITY_ONLY' ? 'Impor & Unduh ZIP' : legacyMode ? 'Konfirmasi Import' : 'Impor & Lanjutkan'}</button>
+        }}><Upload size={16} />{busy ? 'Memproses...' : productionMode ? 'Impor Master & Buka Pusat Dokumen' : mode === 'IDENTITY_ONLY' ? 'Impor & Unduh ZIP' : legacyMode ? 'Konfirmasi Import' : 'Impor & Lanjutkan'}</button>
     </div>
   </div>;
 }

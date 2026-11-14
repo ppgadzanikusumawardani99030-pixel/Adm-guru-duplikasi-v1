@@ -63,6 +63,11 @@ export const ZipExportModal: React.FC<ZipExportModalProps> = ({
   const availableTypes: DocumentType[] = curType === 'K13' ? K13_DOC_TYPES : MERDEKA_DOC_TYPES;
 
   const [selectedTypes, setSelectedTypes] = useState<DocumentType[]>(availableTypes);
+  const zipInFlightRef = React.useRef(false);
+
+  React.useEffect(() => {
+    setSelectedTypes(curType === 'K13' ? K13_DOC_TYPES : MERDEKA_DOC_TYPES);
+  }, [curType]);
 
   if (!isOpen) return null;
 
@@ -76,11 +81,13 @@ export const ZipExportModal: React.FC<ZipExportModalProps> = ({
   const deselectAll = () => setSelectedTypes([]);
 
   const handleStartExport = async () => {
+    if (zipInFlightRef.current) return;
     if (selectedTypes.length === 0) {
       setErrorMessage('Pilih minimal satu jenis dokumen untuk diekspor ke dalam arsip ZIP.');
       return;
     }
 
+    zipInFlightRef.current = true;
     setIsExporting(true);
     setErrorMessage(null);
     setExportResult(null);
@@ -103,6 +110,10 @@ export const ZipExportModal: React.FC<ZipExportModalProps> = ({
         context
       );
 
+      if (!result.zipBlob || result.zipBlob.size === 0) {
+        throw new Error('Berkas ZIP tidak dihasilkan atau berukuran 0 byte.');
+      }
+
       setExportResult(result);
       if (onSuccess) {
         onSuccess(result);
@@ -111,6 +122,7 @@ export const ZipExportModal: React.FC<ZipExportModalProps> = ({
       const msg = err instanceof Error ? err.message : 'Terjadi kendala saat membuat paket ZIP';
       setErrorMessage(msg);
     } finally {
+      zipInFlightRef.current = false;
       setIsExporting(false);
       setProgressText(null);
     }

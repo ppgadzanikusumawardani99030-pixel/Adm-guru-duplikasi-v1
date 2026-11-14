@@ -1534,7 +1534,8 @@ export function validateKKTPData(
   criteria: AssessmentCriterion[],
   tp?: TPData,
   academicSetting?: AcademicSetting,
-  k13Analysis?: K13Analysis
+  k13Analysis?: K13Analysis,
+  options?: { allowDraftWorkflow?: boolean }
 ): {
   status: WorkflowCompletionStatus;
   isSiap: boolean;
@@ -1568,7 +1569,7 @@ export function validateKKTPData(
         criteriaResults: [],
       };
     }
-    if (tp.workflowStatus !== 'SIAP' || tp.needsReview) {
+    if (!options?.allowDraftWorkflow && (tp.workflowStatus !== 'SIAP' || tp.needsReview)) {
       issues.push('Tujuan Pembelajaran (TP) acuan belum berstatus SIAP atau masih memerlukan peninjauan ulang.');
       allValid = false;
     }

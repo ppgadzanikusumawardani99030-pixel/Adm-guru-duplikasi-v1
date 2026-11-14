@@ -185,6 +185,20 @@ export function checkAssessmentExportEligibility(
         resolvedPackageId: context.activeAssessmentPackageId,
       };
     }
+  } else if (context.productionMode) {
+    if (packages.length === 0) {
+      blockers.push(
+        'Dokumen Asesmen tidak dapat diekspor: Belum ada Perangkat Asesmen yang tersedia.'
+      );
+      return { eligible: false, blockers, warnings };
+    }
+    if (packages.length > 1) {
+      blockers.push(
+        `Dokumen Asesmen tidak dapat diekspor: Terdapat ${packages.length} Perangkat Asesmen tanpa ID spesifik. Tentukan ID perangkat secara eksplisit.`
+      );
+      return { eligible: false, blockers, warnings };
+    }
+    resolvedPkg = packages[0];
   } else {
     // No explicit ID: resolve by SIAP status
     const siapPackages = packages.filter((p) => p.workflowStatus === 'SIAP');
@@ -214,15 +228,15 @@ export function checkAssessmentExportEligibility(
     resolvedPkg = siapPackages[0];
   }
 
-  // Verify status is strictly SIAP
-  if (resolvedPkg.workflowStatus !== 'SIAP') {
+  // Verify status is strictly SIAP outside production mode
+  if (!context.productionMode && resolvedPkg.workflowStatus !== 'SIAP') {
     blockers.push(
       `Perangkat Asesmen "${resolvedPkg.title}" berstatus ${resolvedPkg.workflowStatus}. Hanya Perangkat Asesmen berstatus SIAP yang dapat diekspor menjadi dokumen resmi.`
     );
   }
 
-  // Verify needsReview flag
-  if (resolvedPkg.needsReview) {
+  // Verify needsReview flag outside production mode
+  if (!context.productionMode && resolvedPkg.needsReview) {
     blockers.push(
       `Perangkat Asesmen "${resolvedPkg.title}" masih memerlukan review atau revisi guru (needsReview = true).`
     );
@@ -244,6 +258,7 @@ export function checkAssessmentExportEligibility(
     tp: context.tp,
     k13Analysis: context.k13Analysis,
     assessmentCriteria: context.assessmentCriteria || [],
+    allowDraftWorkflow: Boolean(context.productionMode),
   };
 
   const valResult = validateAssessmentPackage(resolvedPkg, validationContext);

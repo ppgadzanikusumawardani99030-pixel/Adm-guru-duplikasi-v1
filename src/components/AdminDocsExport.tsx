@@ -6,7 +6,7 @@ import { APP_BUILD_SHA } from '../config/buildInfo';
 import { MODUL_AJAR_RENDERER_VERSION } from '../config/modulAjarRendererVersion';
 import { prepareModulAjarExportContext } from '../services/documentEngine/modulAjarExportContext';
 import { getLastModulAjarExportDiagnostic, ModulAjarExportDiagnostic } from '../services/documentEngine/modulAjarExportDiagnostics';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { saveAs } from 'file-saver';
 import {
   FileText,
@@ -64,6 +64,7 @@ import {
   WorkflowStepId,
   SemesterJPSetting,
   AnnualJPReference,
+  SemesterPlan,
 } from '../types';
 import {
   DOCUMENT_CATALOG,
@@ -91,6 +92,12 @@ import { getCurriculumType } from '../services/curriculumRules';
 import { isK13 as isK13Check, getCurriculumDocumentTypes } from '../services/curriculumRouter';
 import { SnapshotValidationModal } from './SnapshotValidationModal';
 import { ZipExportModal } from './ZipExportModal';
+import {
+  assessProductionDocumentStatus,
+  DestinationIdentityUpdateInput,
+  ProductionDocumentAssessment,
+} from '../services/productionModeService';
+import { getLocalTodayDocumentDate } from '../services/documentDateService';
 
 interface AdminDocsExportProps {
   profile: TeacherProfile;
@@ -133,6 +140,14 @@ interface AdminDocsExportProps {
   assessmentPackages?: AssessmentPackage[];
   onBackToStep: (stepId: WorkflowStepId) => void;
   onUpdateDocuments?: (updatedDocs: AppDocumentRecord[]) => void;
+  productionMode?: boolean;
+  semesterPlans?: SemesterPlan[];
+  activeSemesterPlanId?: string;
+  onSelectSemesterPlan?: (id: string) => void;
+  onUpdateDestinationIdentity?: (
+    input: Omit<DestinationIdentityUpdateInput, 'profileId' | 'schoolId' | 'workspaceId'>
+  ) => { ok: boolean; error?: string; warning?: string };
+  onOpenCompleteImport?: () => void;
 }
 
 export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
@@ -172,6 +187,12 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
   assessmentPackages = [],
   onBackToStep,
   onUpdateDocuments,
+  productionMode = false,
+  semesterPlans = [],
+  activeSemesterPlanId,
+  onSelectSemesterPlan,
+  onUpdateDestinationIdentity,
+  onOpenCompleteImport,
 }) => {
   const isK13Curriculum = isK13Check(academicSetting);
   const [activePreviewType, setActivePreviewType] = useState<DocumentType>(() =>
@@ -181,8 +202,11 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
   const [generatingDocType, setGeneratingDocType] = useState<string | null>(null);
   const [isExportingAll, setIsExportingAll] = useState(false);
   const [isExportingZip, setIsExportingZip] = useState(false);
+  const zipInFlightRef = useRef(false);
   const [isZipModalOpen, setIsZipModalOpen] = useState(false);
   const [zipProgressText, setZipProgressText] = useState<string | null>(null);
+  const [lastZipResult, setLastZipResult] = useState<ZipExportResult | null>(null);
+  const [renderErrorsByType, setRenderErrorsByType] = useState<Record<string, string>>({});
   const [documentMode, setDocumentMode] = useState<DocumentMode>('data');
   const [exportSuccessMessage, setExportSuccessMessage] = useState<string | null>(null);
   const [exportErrorMessage, setExportErrorMessage] = useState<string | null>(null);
@@ -190,12 +214,60 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
   const [historicalModulSnapshot, setHistoricalModulSnapshot] = useState<DocumentSnapshot | undefined>(() =>
     documents.find(d => d.type === 'MODUL_AJAR' && (!d.workspaceId || d.workspaceId === workspace?.id))?.snapshot);
 
+  // Destination identity editor state (Production Mode)
+  const [destTeacherName, setDestTeacherName] = useState(profile?.name || '');
+  const [destTeacherNip, setDestTeacherNip] = useState(profile?.nip || '');
+  const [destSchoolName, setDestSchoolName] = useState(school?.name || '');
+  const [destSchoolNpsn, setDestSchoolNpsn] = useState(school?.npsn || '');
+  const [destSchoolAddress, setDestSchoolAddress] = useState(school?.address || '');
+  const [destPrincipalName, setDestPrincipalName] = useState(school?.principalName || '');
+  const [destPrincipalNip, setDestPrincipalNip] = useState(school?.principalNip || '');
+  const [destDocumentDate, setDestDocumentDate] = useState(workspace?.documentDate || getLocalTodayDocumentDate());
+  const [identityFeedback, setIdentityFeedback] = useState<{ type: 'success' | 'warning' | 'error'; message: string } | null>(null);
+
+  useEffect(() => {
+    setLocalDocs(documents);
+    setHistoricalModulSnapshot(
+      documents.find(d => d.type === 'MODUL_AJAR' && (!d.workspaceId || d.workspaceId === workspace?.id))?.snapshot
+    );
+  }, [documents, workspace?.id, academicSetting.id]);
+
+  useEffect(() => {
+    setDestTeacherName(profile?.name || '');
+    setDestTeacherNip(profile?.nip || '');
+    setDestSchoolName(school?.name || '');
+    setDestSchoolNpsn(school?.npsn || '');
+    setDestSchoolAddress(school?.address || '');
+    setDestPrincipalName(school?.principalName || '');
+    setDestPrincipalNip(school?.principalNip || '');
+    setDestDocumentDate(workspace?.documentDate || getLocalTodayDocumentDate());
+  }, [profile?.id, profile?.name, profile?.nip, school?.id, school?.name, school?.npsn, school?.address, school?.principalName, school?.principalNip, workspace?.id, workspace?.documentDate]);
 
   const readyAssessmentPackages = (assessmentPackages || []).filter((p) => p.workflowStatus === 'SIAP' && p.needsReview !== true);
+  const availableAssessmentPackages = productionMode ? (assessmentPackages || []) : readyAssessmentPackages;
+
   const [selectedAssessmentPackageId, setSelectedAssessmentPackageId] = useState<string>(() => {
-    if (readyAssessmentPackages.length === 1) return readyAssessmentPackages[0].id;
+    if (availableAssessmentPackages.length === 1) return availableAssessmentPackages[0].id;
     return '';
   });
+  const [selectedLearningPlanId, setSelectedLearningPlanId] = useState<string>(() => {
+    if ((learningPlans || []).length === 1) return learningPlans[0].id;
+    return '';
+  });
+
+  useEffect(() => {
+    setSelectedAssessmentPackageId((prev) => {
+      if (prev && availableAssessmentPackages.some((p) => p.id === prev)) return prev;
+      return availableAssessmentPackages.length === 1 ? availableAssessmentPackages[0].id : '';
+    });
+  }, [academicSetting.id, productionMode, availableAssessmentPackages.length]);
+
+  useEffect(() => {
+    setSelectedLearningPlanId((prev) => {
+      if (prev && (learningPlans || []).some((p) => p.id === prev)) return prev;
+      return (learningPlans || []).length === 1 ? learningPlans[0].id : '';
+    });
+  }, [academicSetting.id, (learningPlans || []).length]);
 
   // Validation status
   const isProfileValid = !!(profile?.name && profile.name.trim().length > 0);
@@ -223,6 +295,7 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
     academicSetting,
     workspace,
     documentMode,
+    productionMode: Boolean(productionMode),
     cp: cp || { id: '', academicSettingId: '', generalDescription: '', elements: [], updatedAt: '' },
     tp: tp || { id: '', academicSettingId: '', items: [], updatedAt: '' },
     atp: atp || { id: '', academicSettingId: '', rationale: '', items: [], totalJP: 0, updatedAt: '' },
@@ -251,8 +324,22 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
     learningPlans,
     assessmentPlans,
     assessmentPackages,
-    activeAssessmentPackageId: selectedAssessmentPackageId || (readyAssessmentPackages.length === 1 ? readyAssessmentPackages[0].id : undefined),
+    activeLearningPlanId: selectedLearningPlanId || (learningPlans.length === 1 ? learningPlans[0].id : undefined),
+    activeAssessmentPackageId: selectedAssessmentPackageId || (availableAssessmentPackages.length === 1 ? availableAssessmentPackages[0].id : undefined),
   };
+
+  const productionAssessments = new Map<DocumentType, ProductionDocumentAssessment>();
+  if (productionMode) {
+    for (const cat of DOCUMENT_CATALOG) {
+      productionAssessments.set(
+        cat.type,
+        assessProductionDocumentStatus(cat.type, context, renderErrorsByType[cat.type])
+      );
+    }
+  }
+  const anyProductionDocReady = productionMode
+    ? Array.from(productionAssessments.values()).some((a) => a.canDownload)
+    : isBulkExportEligible;
 
   const getDocRecord = (type: DocumentType): AppDocumentRecord | undefined => {
     return localDocs.find((d) => d.type === type && (!d.workspaceId || d.workspaceId === workspace?.id) && (type !== 'JURNAL' || d.academicSettingId === academicSetting.id));
@@ -333,6 +420,14 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
     setGeneratingDocType(`${type}-${format}`);
     setExportErrorMessage(null);
     setExportSuccessMessage(null);
+    if (typeof setRenderErrorsByType === 'function') {
+      setRenderErrorsByType((prev) => {
+        if (!prev[type]) return prev;
+        const copy = { ...prev };
+        delete copy[type];
+        return copy;
+      });
+    }
 
     try {
       let record: AppDocumentRecord;
@@ -374,7 +469,9 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
         };
       }
 
-      if (type === 'MODUL_AJAR') setExportDiagnostic(getLastModulAjarExportDiagnostic());
+      if (type === 'MODUL_AJAR' && typeof setExportDiagnostic === 'function' && typeof getLastModulAjarExportDiagnostic === 'function') {
+        setExportDiagnostic(getLastModulAjarExportDiagnostic());
+      }
       if (documentMode === 'blank') {
         setExportSuccessMessage('Format Kosong berhasil diunduh dengan isi administrasi lengkap, tanpa identitas guru dan sekolah. Snapshot tersimpan tidak diubah.');
         return;
@@ -383,34 +480,45 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
         setExportSuccessMessage('Snapshot lama berhasil diunduh.');
         return; // Historical downloads never replace the latest document record.
       }
-      if (type === 'MODUL_AJAR' && existingRec?.snapshot) setHistoricalModulSnapshot(existingRec.snapshot);
-      const updatedList = [
-        ...localDocs.filter((d) => d.id !== record.id && !(d.type === type && (!d.workspaceId || d.workspaceId === workspace?.id) && (type !== 'JURNAL' || d.academicSettingId === academicSetting.id))),
-        record,
-      ];
-      setLocalDocs(updatedList);
-      if (onUpdateDocuments) {
-        onUpdateDocuments(updatedList);
+      if (type === 'MODUL_AJAR' && existingRec?.snapshot && typeof setHistoricalModulSnapshot === 'function') {
+        setHistoricalModulSnapshot(existingRec.snapshot);
+      }
+      const isProdMode = typeof productionMode !== 'undefined' && Boolean(productionMode);
+      if (!isProdMode) {
+        const updatedList = [
+          ...localDocs.filter((d) => d.id !== record.id && !(d.type === type && (!d.workspaceId || d.workspaceId === workspace?.id) && (type !== 'JURNAL' || d.academicSettingId === academicSetting.id))),
+          record,
+        ];
+        setLocalDocs(updatedList);
+        if (onUpdateDocuments) {
+          onUpdateDocuments(updatedList);
+        }
       }
       const finalGeneratedAt = record.snapshot?.generatedAt || effectiveSnapshot.generatedAt;
       setExportSuccessMessage(
-        (forceNew || type === 'MODUL_AJAR')
-          ? `Dokumen ${title} (.${format}) berhasil diperbarui dengan data sekolah/kepsek terbaru!`
+        (forceNew || type === 'MODUL_AJAR' || isProdMode)
+          ? `Dokumen ${title} (.${format}) berhasil diunduh dengan identitas tujuan!`
           : `Dokumen ${title} (.${format}) [Snapshot: ${formatOfficialSnapshotDate(finalGeneratedAt)}] berhasil diunduh!`
       );
       setTimeout(() => setExportSuccessMessage(null), 6000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Gagal menghasilkan dokumen';
-      setExportErrorMessage(msg);
+      if (typeof setRenderErrorsByType === 'function') {
+        setRenderErrorsByType((prev) => ({ ...prev, [type]: msg }));
+      }
+      setExportErrorMessage(`${type}: ${msg}`);
     } finally {
       setGeneratingDocType(null);
     }
   };
 
   const handleExportZipBundle = async (format: ZipExportFormat = 'both') => {
+    if (zipInFlightRef.current) return;
+    zipInFlightRef.current = true;
     setIsExportingZip(true);
     setExportErrorMessage(null);
     setExportSuccessMessage(null);
+    setLastZipResult(null);
     setZipProgressText('Menyiapkan struktur folder administrasi...');
 
     try {
@@ -418,32 +526,34 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
         {
           format,
           documentMode,
-          existingRecords: localDocs,
+          existingRecords: productionMode ? [] : localDocs,
           onProgress: (curr, total, docTitle) => {
             setZipProgressText(`Mengepak dokumen (${curr}/${total}): ${docTitle}...`);
           },
         },
-        context
+        { ...context, skipDownload: false }
       );
 
-      const formatLabel = format === 'both' ? 'PDF & Word' : format.toUpperCase();
-      if (!result.isComplete || (result.failedCount ?? 0) > 0 || (result.partialCount ?? 0) > 0 || (result.skippedCount ?? 0) > 0) {
+      if (!result.zipBlob || result.zipBlob.size === 0) {
+        throw new Error('Berkas ZIP gagal dibuat atau berukuran 0 byte. Silakan coba kembali.');
+      }
+
+      setLastZipResult(result);
+
+      if ((result.failedCount ?? 0) > 0 || (result.partialCount ?? 0) > 0 || (result.skippedCount ?? 0) > 0) {
         setExportErrorMessage(
-          `Perhatian: Paket ZIP berhasil diunduh (${result.exportedCount} dokumen), namun berstatus TIDAK LENGKAP: ${result.failedCount ?? 0} gagal, ${result.skippedCount ?? 0} dilewati/belum siap.`
+          `ZIP "${result.zipFileName}" diunduh (${result.exportedCount} dokumen), dengan rincian: ${result.successCount ?? result.exportedCount} berhasil, ${result.partialCount ?? 0} parsial, ${result.skippedCount ?? 0} data kurang, ${result.failedCount ?? 0} gagal.`
         );
       } else {
         setExportSuccessMessage(
-          `Sukses! ${result.exportedCount} dokumen (${result.pdfCount} PDF, ${result.docxCount} Word) telah lengkap dikompresi ke dalam arsip ZIP "${result.zipFileName}" (6 Folder Administrasi).`
+          `Sukses! ${result.exportedCount} dokumen (${result.pdfCount} PDF, ${result.docxCount} Word) telah lengkap dikompresi ke dalam arsip ZIP "${result.zipFileName}".`
         );
       }
-      setTimeout(() => {
-        setExportSuccessMessage(null);
-        setExportErrorMessage(null);
-      }, 8000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Terjadi kendala saat membuat paket ZIP';
       setExportErrorMessage(msg);
     } finally {
+      zipInFlightRef.current = false;
       setIsExportingZip(false);
       setZipProgressText(null);
     }
@@ -519,14 +629,14 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
           await new Promise((r) => setTimeout(r, 600));
         }
       }
-      if (documentMode !== 'blank') {
+      const isProdMode = typeof productionMode !== 'undefined' && Boolean(productionMode);
+      if (documentMode !== 'blank' && !isProdMode) {
         setLocalDocs(newRecords);
         if (onUpdateDocuments) onUpdateDocuments(newRecords);
       }
       setExportSuccessMessage(
         `${successCount} dokumen administrasi (.${format}) diunduh${documentMode === 'blank' ? ' tanpa identitas guru dan sekolah' : ''}.${skipped.length ? ` Belum siap: ${skipped.join(' | ')}` : ''}`
       );
-      setTimeout(() => setExportSuccessMessage(null), 8000);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Terjadi kendala saat menghasilkan berkas';
       setExportErrorMessage(msg);
@@ -682,7 +792,7 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
               <button
                 id="btn-export-all-docs-docx"
                 onClick={() => handleGenerateAllDocs('docx')}
-                disabled={isExportingAll || isExportingZip || !isBulkExportEligible}
+                disabled={isExportingAll || isExportingZip || (productionMode ? !anyProductionDocReady : !isBulkExportEligible)}
                 className="inline-flex items-center justify-center gap-1.5 bg-blue-900 hover:bg-blue-950 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-md shadow-blue-900/15 transition-all cursor-pointer disabled:opacity-50"
                 title="Unduh semua berkas Word satu per satu"
               >
@@ -702,7 +812,7 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
               <button
                 id="btn-export-all-docs-pdf"
                 onClick={() => handleGenerateAllDocs('pdf')}
-                disabled={isExportingAll || isExportingZip || !isBulkExportEligible}
+                disabled={isExportingAll || isExportingZip || (productionMode ? !anyProductionDocReady : !isBulkExportEligible)}
                 className="inline-flex items-center justify-center gap-1.5 bg-rose-800 hover:bg-rose-900 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-md shadow-rose-900/15 transition-all cursor-pointer disabled:opacity-50"
                 title="Unduh semua berkas PDF satu per satu"
               >
@@ -756,7 +866,198 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
             </div>
           </div>
         )}
+
+        {lastZipResult && (
+          <div role="status" className="mt-4 p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="font-bold text-slate-900">
+                Laporan Paket ZIP: {lastZipResult.zipFileName}
+              </span>
+              <span className="font-mono text-[11px] text-slate-700">
+                SUCCESS: {lastZipResult.successCount ?? lastZipResult.exportedCount} · PARTIAL: {lastZipResult.partialCount ?? 0} · SKIPPED: {lastZipResult.skippedCount ?? 0} · FAILED: {lastZipResult.failedCount ?? 0}
+              </span>
+            </div>
+            {lastZipResult.itemResults && lastZipResult.itemResults.some((item) => item.status !== 'SUCCESS') && (
+              <ul className="list-disc pl-5 text-[11px] text-slate-700 space-y-0.5 max-h-36 overflow-auto">
+                {lastZipResult.itemResults
+                  .filter((item) => item.status !== 'SUCCESS')
+                  .map((item, idx) => (
+                    <li key={`${item.type}-${idx}`}>
+                      <strong>{item.type}{item.instanceTitle ? ` (${item.instanceTitle})` : ''}</strong> [{item.status}]: {item.reason || 'Data belum lengkap atau gagal render.'}
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Production Mode Quick Panel */}
+      {productionMode && (
+        <div className="bg-emerald-50/70 rounded-2xl p-5 border border-emerald-200 shadow-xs space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-bold text-emerald-950">Panel Mode Produksi Administrasi</h4>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                Data master (CP, TP, ATP, Bab, Materi, Alokasi, Rencana, Asesmen) dipakai apa adanya tanpa AI atau konfirmasi Step 01–07. Ubah hanya identitas tujuan & tanggal dokumen.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {semesterPlans.length > 0 && onSelectSemesterPlan && (
+                <div className="inline-flex rounded-xl bg-white p-1 border border-emerald-200">
+                  {semesterPlans.map((sp) => (
+                    <button
+                      key={sp.id}
+                      type="button"
+                      onClick={() => onSelectSemesterPlan(sp.id)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        (activeSemesterPlanId || academicSetting.id) === sp.id
+                          ? 'bg-emerald-700 text-white'
+                          : 'text-emerald-900 hover:bg-emerald-50'
+                      }`}
+                    >
+                      Semester {sp.semester}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {onOpenCompleteImport && (
+                <button
+                  type="button"
+                  onClick={onOpenCompleteImport}
+                  className="px-3 py-1.5 rounded-xl bg-blue-800 hover:bg-blue-900 text-white text-xs font-bold cursor-pointer"
+                >
+                  Impor Master ZIP Lain
+                </button>
+              )}
+            </div>
+          </div>
+
+          {onUpdateDestinationIdentity && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const res = onUpdateDestinationIdentity({
+                  teacherName: destTeacherName,
+                  teacherNip: destTeacherNip,
+                  schoolName: destSchoolName,
+                  schoolNpsn: destSchoolNpsn,
+                  schoolAddress: destSchoolAddress,
+                  principalName: destPrincipalName,
+                  principalNip: destPrincipalNip,
+                  documentDate: destDocumentDate,
+                });
+                if (!res.ok) {
+                  setIdentityFeedback({ type: 'error', message: res.error || 'Gagal memperbarui identitas tujuan.' });
+                } else if (res.warning) {
+                  setIdentityFeedback({ type: 'warning', message: res.warning });
+                } else {
+                  setIdentityFeedback({ type: 'success', message: 'Identitas tujuan & tanggal dokumen diperbarui (materi/TP/ATP tidak diubah).' });
+                }
+              }}
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-white p-4 rounded-xl border border-emerald-200/80"
+            >
+              <label className="text-[11px] font-semibold text-slate-700">
+                Guru Pengampu Tujuan
+                <input
+                  type="text"
+                  value={destTeacherName}
+                  onChange={(e) => setDestTeacherName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-700">
+                NIP Guru
+                <input
+                  type="text"
+                  value={destTeacherNip}
+                  onChange={(e) => setDestTeacherNip(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-700">
+                Sekolah Tujuan
+                <input
+                  type="text"
+                  value={destSchoolName}
+                  onChange={(e) => setDestSchoolName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-700">
+                NPSN Sekolah
+                <input
+                  type="text"
+                  value={destSchoolNpsn}
+                  onChange={(e) => setDestSchoolNpsn(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-700">
+                Alamat Sekolah
+                <input
+                  type="text"
+                  value={destSchoolAddress}
+                  onChange={(e) => setDestSchoolAddress(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-700">
+                Kepala Sekolah
+                <input
+                  type="text"
+                  value={destPrincipalName}
+                  onChange={(e) => setDestPrincipalName(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-700">
+                NIP Kepala Sekolah
+                <input
+                  type="text"
+                  value={destPrincipalNip}
+                  onChange={(e) => setDestPrincipalNip(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <label className="text-[11px] font-semibold text-slate-700">
+                Tanggal Dokumen
+                <input
+                  type="date"
+                  value={destDocumentDate}
+                  onChange={(e) => setDestDocumentDate(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs text-slate-900"
+                />
+              </label>
+              <div className="sm:col-span-2 lg:col-span-4 flex items-center justify-between gap-3 pt-1 flex-wrap">
+                {identityFeedback ? (
+                  <span
+                    className={`text-xs font-semibold ${
+                      identityFeedback.type === 'error'
+                        ? 'text-rose-700'
+                        : identityFeedback.type === 'warning'
+                        ? 'text-amber-800'
+                        : 'text-emerald-800'
+                    }`}
+                  >
+                    {identityFeedback.message}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-slate-500">
+                    Perubahan hanya memperbarui identitas tujuan & blok TTD tanpa menyentuh substansi kurikulum.
+                  </span>
+                )}
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold cursor-pointer"
+                >
+                  Simpan Identitas Tujuan
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
 
       {/* Grid: Workflow Integrity, Document Catalog & Live Paper Preview */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -944,16 +1245,26 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
                     <div className="space-y-2.5">
                       {itemsInCategory.map((catItem) => {
                         const record = getDocRecord(catItem.type);
-                        const validation = validateDocumentRequirements(catItem.type, context);
+                        const prodAssessment = productionMode ? productionAssessments.get(catItem.type) : undefined;
+                        const validation = prodAssessment ? prodAssessment.validation : validateDocumentRequirements(catItem.type, context);
                         const isOutdated = isDocOutdated(catItem.type, record);
-                        const isGenerating = generatingDocType === catItem.type;
+                        const isGenerating = generatingDocType === `${catItem.type}-docx` || generatingDocType === `${catItem.type}-pdf`;
                         const isSelectedForPreview = activePreviewType === catItem.type;
+                        const canDownload = prodAssessment ? prodAssessment.canDownload : validation.isValid;
 
                         // Status resolution:
                         let statusText = 'Siap dibuat';
                         let statusColor = 'bg-blue-100 text-blue-800 border-blue-200';
 
-                        if (!validation.isValid) {
+                        if (prodAssessment) {
+                          statusText = prodAssessment.label;
+                          statusColor =
+                            prodAssessment.status === 'SIAP_CETAK'
+                              ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                              : prodAssessment.status === 'GAGAL_RENDER'
+                              ? 'bg-rose-100 text-rose-900 border-rose-300'
+                              : 'bg-amber-100 text-amber-900 border-amber-300';
+                        } else if (!validation.isValid) {
                           statusText = 'Belum lengkap datanya';
                           statusColor = 'bg-slate-100 text-slate-600 border-slate-200';
                         } else if (record && isOutdated) {
@@ -993,15 +1304,15 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
                                 <button
                                   type="button"
                                   id={`btn-download-docx-${catItem.type.toLowerCase()}`}
-                                  disabled={isGenerating || isExportingAll || !validation.isValid}
+                                  disabled={isGenerating || isExportingAll || !canDownload}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleGenerateSingleDoc(catItem.type, 'docx');
                                   }}
-                                  title="Unduh Format Microsoft Word (.docx)"
+                                  title={canDownload ? 'Unduh Format Microsoft Word (.docx)' : (prodAssessment?.reasons.join('; ') || validation.message)}
                                   className="px-2.5 py-1.5 bg-blue-800 hover:bg-blue-900 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold shrink-0 transition flex items-center gap-1 cursor-pointer shadow-2xs"
                                 >
-                                  {isGenerating && generatingDocType === `${catItem.type}-docx` ? (
+                                  {generatingDocType === `${catItem.type}-docx` ? (
                                     <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                                   ) : (
                                     <>
@@ -1014,15 +1325,15 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
                                 <button
                                   type="button"
                                   id={`btn-download-pdf-${catItem.type.toLowerCase()}`}
-                                  disabled={isGenerating || isExportingAll || !validation.isValid}
+                                  disabled={isGenerating || isExportingAll || !canDownload}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleGenerateSingleDoc(catItem.type, 'pdf');
                                   }}
-                                  title="Unduh Format PDF Siap Cetak Langsung"
+                                  title={canDownload ? 'Unduh Format PDF Siap Cetak Langsung' : (prodAssessment?.reasons.join('; ') || validation.message)}
                                   className="px-2.5 py-1.5 bg-rose-700 hover:bg-rose-800 disabled:bg-slate-300 text-white rounded-lg text-xs font-bold shrink-0 transition flex items-center gap-1 cursor-pointer shadow-2xs"
                                 >
-                                  {isGenerating && generatingDocType === `${catItem.type}-pdf` ? (
+                                  {generatingDocType === `${catItem.type}-pdf` ? (
                                     <div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                                   ) : (
                                     <>
@@ -1036,7 +1347,19 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
 
                             <p className="text-[11px] text-slate-500 mt-1.5 leading-normal">{catItem.description}</p>
 
-                            {record?.snapshot && (
+                            {prodAssessment && prodAssessment.reasons.length > 0 && (
+                              <ul className={`mt-2 text-[10.5px] list-disc pl-4 space-y-0.5 rounded-md p-2 border ${
+                                prodAssessment.status === 'GAGAL_RENDER'
+                                  ? 'bg-rose-50 border-rose-200 text-rose-800'
+                                  : 'bg-amber-50 border-amber-200 text-amber-900'
+                              }`}>
+                                {prodAssessment.reasons.map((reason, rIdx) => (
+                                  <li key={rIdx}>{reason}</li>
+                                ))}
+                              </ul>
+                            )}
+
+                            {record?.snapshot && !productionMode && (
                               <div className="mt-2 text-[10px] bg-slate-50 border border-slate-200/90 rounded-md p-1.5 space-y-1">
                                 <div className="flex items-center justify-between text-slate-700">
                                   <div className="flex items-center gap-1 font-semibold">
@@ -1833,18 +2156,35 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
 
             {/* 4. MODUL AJAR PREVIEW */}
             {activePreviewType === 'MODUL_AJAR' && (() => {
-              ;
-
               const projection = buildModulAjarProjection(context);
 
               if (!projection.isReady || !projection.plan) {
                 return (
-                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium space-y-2">
-                    <div className="font-bold flex items-center gap-1.5 text-amber-900">
-                      <AlertCircle className="w-4 h-4 text-amber-600" />
-                      Prasyarat Modul Ajar Belum Terpenuhi
+                  <div className="space-y-3">
+                    {(learningPlans || []).length > 1 && (
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3">
+                        <span className="text-xs font-semibold text-slate-700">Pilih Rencana Pembelajaran / Modul Ajar:</span>
+                        <select
+                          value={selectedLearningPlanId}
+                          onChange={(e) => setSelectedLearningPlanId(e.target.value)}
+                          className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-800"
+                        >
+                          <option value="">-- Pilih Modul Ajar --</option>
+                          {(learningPlans || []).map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.title || p.unitName || p.id} ({p.status || 'DRAFT'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium space-y-2">
+                      <div className="font-bold flex items-center gap-1.5 text-amber-900">
+                        <AlertCircle className="w-4 h-4 text-amber-600" />
+                        Prasyarat Modul Ajar Belum Terpenuhi
+                      </div>
+                      <div>{projection.error || 'Modul Ajar belum dapat dipratinjau karena prasyarat belum lengkap.'}</div>
                     </div>
-                    <div>{projection.error || 'Modul Ajar belum dapat dipratinjau karena belum ada rancangan dengan status SIAP atau prasyarat belum lengkap.'}</div>
                   </div>
                 );
               }
@@ -1857,11 +2197,32 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
 
               return (
                 <div className="space-y-3 text-slate-800">
+                  {(learningPlans || []).length > 1 && (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-slate-700">Pilih Rencana Pembelajaran / Modul Ajar:</span>
+                      <select
+                        value={selectedLearningPlanId}
+                        onChange={(e) => setSelectedLearningPlanId(e.target.value)}
+                        className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-800"
+                      >
+                        <option value="">-- Pilih Modul Ajar --</option>
+                        {(learningPlans || []).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.title || p.unitName || p.id} ({p.status || 'DRAFT'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-100 space-y-1">
                     <div className="flex items-center justify-between">
                       <div className="font-bold text-blue-950 uppercase text-[11px]">I. Informasi Umum & Alokasi Waktu</div>
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold border bg-emerald-50 text-emerald-700 border-emerald-200">
-                        SIAP (Terkonfirmasi)
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        plan.status === 'SIAP'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : 'bg-amber-50 text-amber-800 border-amber-200'
+                      }`}>
+                        {plan.status === 'SIAP' ? 'SIAP (Terkonfirmasi)' : (plan.status || 'DRAFT')}
                       </span>
                     </div>
                     <div className="text-[11px] text-slate-600 leading-relaxed">
@@ -1909,17 +2270,19 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
             {activePreviewType === 'ASESMEN' && (() => {
               const activePkg =
                 (assessmentPackages || []).find((p) => p.id === selectedAssessmentPackageId) ||
-                (readyAssessmentPackages.length === 1 ? readyAssessmentPackages[0] : undefined);
+                (availableAssessmentPackages.length === 1 ? availableAssessmentPackages[0] : undefined);
 
-              ;
-
-              if (readyAssessmentPackages.length === 0) {
+              if (availableAssessmentPackages.length === 0) {
                 return (
                   <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-center space-y-3">
                     <AlertCircle className="w-8 h-8 text-amber-600 mx-auto" />
-                    <h5 className="font-bold text-amber-900 text-sm">Belum Ada Perangkat Asesmen Berstatus SIAP</h5>
+                    <h5 className="font-bold text-amber-900 text-sm">
+                      {productionMode ? 'Belum Ada Perangkat Asesmen pada Semester Ini' : 'Belum Ada Perangkat Asesmen Berstatus SIAP'}
+                    </h5>
                     <p className="text-xs text-amber-800 max-w-md mx-auto">
-                      Dokumen Asesmen hanya dapat diekspor dari Perangkat Asesmen yang telah tervalidasi dan dikonfirmasi berstatus <strong>SIAP</strong> oleh guru.
+                      {productionMode
+                        ? 'Perangkat Asesmen belum tersedia pada proyek master semester ini.'
+                        : 'Dokumen Asesmen hanya dapat diekspor dari Perangkat Asesmen yang telah tervalidasi dan dikonfirmasi berstatus SIAP oleh guru.'}
                     </p>
                     <button
                       onClick={() => onBackToStep('assessment')}
@@ -1933,18 +2296,20 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
 
               return (
                 <div className="space-y-5">
-                  {readyAssessmentPackages.length > 1 && (
+                  {availableAssessmentPackages.length > 1 && (
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold text-slate-700">Pilih Perangkat Asesmen SIAP:</span>
+                      <span className="text-xs font-semibold text-slate-700">
+                        {productionMode ? 'Pilih Perangkat Asesmen:' : 'Pilih Perangkat Asesmen SIAP:'}
+                      </span>
                       <select
                         value={selectedAssessmentPackageId}
                         onChange={(e) => setSelectedAssessmentPackageId(e.target.value)}
                         className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-md text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">-- Pilih Perangkat Asesmen --</option>
-                        {readyAssessmentPackages.map((p) => (
+                        {availableAssessmentPackages.map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.title} (Revisi {p.revision || 1})
+                            {p.title} ({p.workflowStatus || 'DRAFT'} · Revisi {p.revision || 1})
                           </option>
                         ))}
                       </select>
@@ -1957,7 +2322,13 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
                         <div>
                           <div className="flex items-center gap-2">
                             <span className="font-bold text-emerald-950 text-xs">{activePkg.title}</span>
-                            <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold">SIAP</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              activePkg.workflowStatus === 'SIAP'
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-amber-100 text-amber-900 border border-amber-300'
+                            }`}>
+                              {activePkg.workflowStatus || 'DRAFT'}
+                            </span>
                           </div>
                           <p className="text-[11px] text-emerald-800 mt-0.5">
                             {activePkg.blueprintItems.length} Kisi-kisi • {activePkg.instruments.length} Instrumen • {activePkg.answerKeys.length} Kunci/Rubrik
@@ -2283,12 +2654,12 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
         isOpen={isZipModalOpen}
         onClose={() => setIsZipModalOpen(false)}
         context={context}
-        existingRecords={localDocs}
+        existingRecords={productionMode ? [] : localDocs}
         onSuccess={(result) => {
+          setLastZipResult(result);
           setExportSuccessMessage(
             `Sukses! ${result.exportedCount} dokumen (${result.pdfCount} PDF, ${result.docxCount} Word) telah dikompresi ke dalam arsip ZIP "${result.zipFileName}".`
           );
-          setTimeout(() => setExportSuccessMessage(null), 8000);
         }}
       />
     </div>

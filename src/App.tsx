@@ -82,12 +82,19 @@ import {
   saveJournalRealizationV5,
   saveRemedialV5,
   saveEnrichmentV5,
+  isQuotaExceededError,
 } from './services/storageV5';
 import { getRuntimeContextV5 } from './services/runtimeV5';
 import {
   getLocalTodayDocumentDate,
   isValidDocumentDate,
 } from './services/documentDateService';
+import {
+  getProductionMode,
+  setProductionMode,
+  updateDestinationIdentityOnly,
+  DestinationIdentityUpdateInput,
+} from './services/productionModeService';
 import { validateSubjectWeeklySchedule } from './services/subjectScheduleService';
 import { Header } from './components/Header';
 import { WorkflowStepper } from './components/WorkflowStepper';
@@ -130,6 +137,7 @@ const EMPTY_SCHOOL_VIEW: SchoolData = {
 
 export function App() {
   const [v5State, setV5State] = useState<AppStorageStateV5>(() => loadStorageV5());
+  const [productionMode, setProductionModeState] = useState<boolean>(() => getProductionMode());
   const [currentStep, setCurrentStep] = useState<WorkflowStepId>('profile');
   const [isBackupModalOpen, setIsBackupModalOpen] = useState(false);
   const [isNewWorkspaceModalOpen, setIsNewWorkspaceModalOpen] = useState(false);
@@ -150,9 +158,9 @@ export function App() {
     setV5State(loadStorageV5());
   }, []);
 
-  // Compute canonical V5 runtime context
+  // Compute canonical V5 runtime context (reads active in-memory state when QuotaExceeded prevents saving)
   const runtimeContext = useMemo(() => {
-    return getRuntimeContextV5();
+    return getRuntimeContextV5(v5State);
   }, [v5State]);
 
   const {
@@ -611,6 +619,19 @@ export function App() {
     }
     const isMerdeka = !isK13(transitionalAcademicSetting);
     if (isMerdeka && step === 'admin' && !isActiveSemesterValid) {
+      if (productionMode && semesterPlansForActiveYear.length > 0) {
+        const defaultSem = semesterPlansForActiveYear.find((sp) => sp.semester === 1) || semesterPlansForActiveYear[0];
+        try {
+          setActiveSemesterPlanV5(defaultSem.id);
+          refreshV5();
+        } catch (err: any) {
+          if (isQuotaExceededError(err)) {
+            setV5State((prev) => ({ ...prev, activeSemesterPlanId: defaultSem.id }));
+          }
+        }
+        setCurrentStep('admin');
+        return;
+      }
       setCurrentStep('semester');
       setAppNotice({
         type: 'warning',
@@ -619,6 +640,65 @@ export function App() {
       return;
     }
     setCurrentStep(step);
+  };
+
+  const handleToggleProductionMode = (enabled: boolean) => {
+    setProductionModeState(enabled);
+    const saved = setProductionMode(enabled);
+    if (!saved) {
+      setAppNotice({
+        type: 'warning',
+        message: 'Preferensi Mode Produksi aktif untuk sesi ini (penyimpanan browser penuh). Data pengguna tidak dihapus.',
+      });
+    } else if (enabled) {
+      setAppNotice({
+        type: 'info',
+        message: 'Mode Produksi aktif: Impor master ZIP -> ubah identitas tujuan -> langsung cetak PDF/DOCX/ZIP di Pusat Dokumen.',
+      });
+    }
+    if (enabled && activeYearPlan) {
+      if (!isActiveSemesterValid && semesterPlansForActiveYear.length > 0) {
+        const defaultSem = semesterPlansForActiveYear.find((sp) => sp.semester === 1) || semesterPlansForActiveYear[0];
+        try {
+          setActiveSemesterPlanV5(defaultSem.id);
+          refreshV5();
+        } catch (err: any) {
+          if (isQuotaExceededError(err)) {
+            setV5State((prev) => ({ ...prev, activeSemesterPlanId: defaultSem.id }));
+          }
+        }
+      }
+      setCurrentStep('admin');
+    }
+  };
+
+  const handleUpdateDestinationIdentity = (
+    input: Omit<DestinationIdentityUpdateInput, 'profileId' | 'schoolId' | 'workspaceId'>
+  ): { ok: boolean; error?: string; warning?: string } => {
+    if (!activeProfile) {
+      return { ok: false, error: 'Profil guru tujuan tidak ditemukan.' };
+    }
+    const targetSchoolId = activeSchoolForView.id || activeProfile.schoolId;
+    if (!targetSchoolId) {
+      return { ok: false, error: 'Sekolah tujuan belum terhubung ke profil guru.' };
+    }
+    try {
+      const res = updateDestinationIdentityOnly(v5State, {
+        ...input,
+        profileId: activeProfile.id,
+        schoolId: targetSchoolId,
+        workspaceId: activeWorkspace?.id,
+      });
+      setV5State(res.state);
+      if (!res.persisted && res.quotaError) {
+        setAppNotice({ type: 'warning', message: res.quotaError });
+        return { ok: true, warning: res.quotaError };
+      }
+      return { ok: true };
+    } catch (err: any) {
+      const message = err instanceof Error ? err.message : 'Gagal menyimpan identitas tujuan.';
+      return { ok: false, error: message };
+    }
   };
 
   const transitionalActiveContext = useMemo<ActiveContext>(() => {
@@ -956,6 +1036,14 @@ export function App() {
       setActiveSemesterPlanV5(semesterPlanId);
       refreshV5();
     } catch (err: any) {
+      if (isQuotaExceededError(err)) {
+        setV5State((prev) => ({ ...prev, activeSemesterPlanId: semesterPlanId }));
+        setAppNotice({
+          type: 'warning',
+          message: 'Semester diganti di memori sesi ini karena penyimpanan browser penuh.',
+        });
+        return;
+      }
       setAppNotice({
         type: 'error',
         message: err instanceof Error ? err.message : 'Gagal memilih semester aktif.',
@@ -1553,7 +1641,10 @@ export function App() {
         onSelectWorkspace={handleSelectWorkspace}
         onCreateWorkspaceClick={openNewWorkspaceModal}
         onImportProjectClick={() => setIsImportProjectModalOpen(true)}
+        onImportCompleteProjectClick={() => { setImportedYearForExport(undefined); setIsCompleteProjectImportOpen(true); }}
         onOpenBackupModal={() => setIsBackupModalOpen(true)}
+        productionMode={productionMode}
+        onToggleProductionMode={handleToggleProductionMode}
       />
 
       {/* Main Workspace Container */}
@@ -1601,6 +1692,7 @@ export function App() {
           activeSemesterPlan={activeSemesterPlan}
           k13Analysis={undefined}
           k13KKM={undefined}
+          productionMode={productionMode}
         />
 
         {/* Step Views */}
@@ -1898,6 +1990,13 @@ export function App() {
               onDeleteLearningPlan={handleDeleteLearningPlan}
               onBackToStep={(step) => setCurrentStep(step)}
               onUpdateDocuments={(updatedDocs) => {}}
+              initialTab={productionMode ? 'export_docs' : undefined}
+              productionMode={productionMode}
+              semesterPlans={semesterPlansForActiveYear}
+              activeSemesterPlanId={activeSemesterPlan?.id}
+              onSelectSemesterPlan={handleSelectSemester}
+              onUpdateDestinationIdentity={handleUpdateDestinationIdentity}
+              onOpenCompleteImport={() => { setImportedYearForExport(undefined); setIsCompleteProjectImportOpen(true); }}
             />
           )}
         </section>
@@ -2074,8 +2173,21 @@ export function App() {
       {/* Backup / Restore JSON Modal */}
       {isCompleteProjectImportOpen && <CompleteProjectImportModal state={v5State}
         importedYearPlanId={importedYearForExport}
+        productionMode={productionMode}
         onContinue={step=>{setIsCompleteProjectImportOpen(false);setCurrentStep(step as WorkflowStepId);}}
-        onClose={() => setIsCompleteProjectImportOpen(false)} onSuccess={(result) => {
+        onClose={() => setIsCompleteProjectImportOpen(false)} onSuccess={(result, quotaWarning) => {
+          if (productionMode) {
+            setV5State(result.state);
+            setIsCompleteProjectImportOpen(false);
+            setCurrentStep('admin');
+            setAppNotice({
+              type: quotaWarning ? 'warning' : 'info',
+              message: quotaWarning
+                ? `Impor master selesai di memori sesi ini (${quotaWarning})`
+                : 'Master ZIP berhasil diimpor dalam Mode Produksi. Pusat Dokumen terbuka tanpa konfirmasi Step 01–07 atau AI.',
+            });
+            return;
+          }
           if (result.mode === 'IDENTITY_ONLY') { refreshV5(); return; }
           if (['IDENTITY_SCHEDULE','OTHER_CLASS','CONTINUE_EDITING'].includes(result.mode)) {
             refreshV5(); setAppNotice({ type: result.step7.target.canProceed ? 'info' : 'warning', message: result.compatibility.reasons[0] || result.step7.target.blockers[0] || (result.mode==='IDENTITY_SCHEDULE' ? 'Impor selesai. Sesuaikan kalender, JP, dan jadwal tujuan; ZIP tersedia setelah validasi.' : 'Impor selesai. Progres valid dipertahankan dan perencanaan dapat disunting.') }); return;

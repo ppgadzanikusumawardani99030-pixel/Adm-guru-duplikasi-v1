@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Database, UserCheck, Wifi, WifiOff, FolderPlus, Layers, Plus, Building2, FileSpreadsheet } from 'lucide-react';
+import { BookOpen, Database, UserCheck, Wifi, WifiOff, Layers, Plus, Building2, FileSpreadsheet, Printer, FileArchive } from 'lucide-react';
 import { TeacherProfile, SchoolData, AdministrationWorkspace } from '../types';
 import { AdministrationWorkspaceV5 } from '../types/storageV5';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -15,7 +15,10 @@ interface HeaderProps {
   onSelectWorkspace: (id: string) => void;
   onCreateWorkspaceClick: () => void;
   onImportProjectClick?: () => void;
+  onImportCompleteProjectClick?: () => void;
   onOpenBackupModal: () => void;
+  productionMode?: boolean;
+  onToggleProductionMode?: (enabled: boolean) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,7 +31,10 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectWorkspace,
   onCreateWorkspaceClick,
   onImportProjectClick,
+  onImportCompleteProjectClick,
   onOpenBackupModal,
+  productionMode = false,
+  onToggleProductionMode,
 }) => {
   const isOnline = useOnlineStatus();
   const safeProfiles = profiles || [];
@@ -51,6 +57,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="hidden lg:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200">
                   Kurikulum Merdeka
                 </span>
+                {productionMode && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <Printer className="w-3 h-3" />
+                    Mode Produksi
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500 hidden sm:block truncate max-w-[200px] md:max-w-none">
                 {school.name || 'Satuan Pendidikan'}
@@ -166,6 +178,38 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Production Mode Toggle */}
+            {onToggleProductionMode && (
+              <button
+                id="btn-header-production-mode"
+                type="button"
+                onClick={() => onToggleProductionMode(!productionMode)}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0 ${
+                  productionMode
+                    ? 'bg-emerald-700 hover:bg-emerald-800 text-white border-emerald-800'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+                title="Aktifkan Mode Produksi: Impor master ZIP -> ganti identitas -> langsung buka Pusat Dokumen tanpa konfirmasi Step 01-07/AI"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>{productionMode ? 'Mode Produksi: ON' : 'Mode Produksi'}</span>
+              </button>
+            )}
+
+            {/* Quick Master ZIP Import in Production Mode */}
+            {productionMode && onImportCompleteProjectClick && (
+              <button
+                id="btn-header-import-master-zip"
+                type="button"
+                onClick={onImportCompleteProjectClick}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold shadow-xs transition-colors cursor-pointer shrink-0"
+                title="Impor Master Proyek Administrasi (.zip)"
+              >
+                <FileArchive className="w-3.5 h-3.5 text-blue-700" />
+                <span className="hidden md:inline">Impor Master ZIP</span>
+              </button>
+            )}
 
             {/* Backup / Restore */}
             <button
