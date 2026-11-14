@@ -99,7 +99,7 @@ export function buildProtaProjection(context: DocumentGenerationContext): ProtaP
   const hasS1 = canonical.rows.some((r) => r.semester === 1);
   const hasS2 = canonical.rows.some((r) => r.semester === 2);
 
-  if (!hasS1 || !hasS2) {
+  if ((!hasS1 || !hasS2) && !context.productionMode) {
     return {
       isReady: false,
       unreadyReason:

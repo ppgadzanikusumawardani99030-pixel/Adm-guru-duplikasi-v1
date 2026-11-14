@@ -280,6 +280,10 @@ export function buildPromesProjection(context: DocumentGenerationContext): Prome
           unreadyReason = `Program Semester belum dapat dibuat karena Jadwal Aktual Semester ${activeSemesterNum} belum lengkap.`;
         } else {
           // Aggregate active semester canonical meetings by Unit/Bab
+          if (context.productionMode && !hasMismatchedSemesterJP) {
+            isReady = true;
+            unreadyReason = undefined;
+          }
           const unitPromesMap = new Map<
             string,
             {

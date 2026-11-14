@@ -24,7 +24,7 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
   const [archive, setArchive] = useState<CompleteProjectArchive>();
   const [profileId, setProfileId] = useState(state.activeProfileId || state.profiles[0]?.id || '');
   const [mode, setMode] = useState<CompleteProjectImportOptions['mode']>('IDENTITY_ONLY');
-  const [preserveFactualData, setPreserveFactualData] = useState(true);
+  const [preserveFactualData, setPreserveFactualData] = useState(false);
   const submitting = useRef(false);
   const [documentDate] = useState(getLocalTodayDocumentDate());
   const [targetGrade, setTargetGrade] = useState('');

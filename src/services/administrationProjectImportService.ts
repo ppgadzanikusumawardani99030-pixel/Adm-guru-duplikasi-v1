@@ -253,7 +253,7 @@ export function prepareCompleteAdministrationProjectImport(current: AppStorageSt
   const imported = remap(graph) as typeof graph;
   const year = imported.yearPlans[0];
   const isProductionMode = Boolean(options.productionMode);
-  const preserveFactualData = isProductionMode && options.preserveFactualData !== false;
+  const preserveFactualData = isProductionMode && options.preserveFactualData === true;
   if (targetClass) { year.grade = targetClass.grade; year.phase = targetClass.phase.replace(/^Fase\s*/i,''); year.classSection = targetSection; }
   const warnings: string[] = [];
   if (modernMode) {

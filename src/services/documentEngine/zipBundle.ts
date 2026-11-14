@@ -346,10 +346,18 @@ export async function generateZipBundle(
   let currentStep = 0;
 
   for (const item of workItems) {
-    const effectiveContext = resolveEffectiveContext(item.context);
+    let effectiveContext: DocumentGenerationContext;
+    let validation;
+    try {
+      effectiveContext = resolveEffectiveContext(item.context);
+      validation = validateDocumentRequirements(item.type, effectiveContext);
+    } catch (error) {
+      itemResults.push({ type: item.type, instanceId: item.instanceId, instanceTitle: item.instanceTitle,
+        status: 'FAILED', reason: error instanceof Error ? error.message : String(error) });
+      continue;
+    }
 
     // Strict validation check using exact item context (instance-aware)
-    const validation = validateDocumentRequirements(item.type, effectiveContext);
     if (!validation.isValid) {
       itemResults.push({
         type: item.type,

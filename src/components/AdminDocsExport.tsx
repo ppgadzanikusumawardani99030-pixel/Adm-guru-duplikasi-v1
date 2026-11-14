@@ -94,6 +94,7 @@ import { SnapshotValidationModal } from './SnapshotValidationModal';
 import { ZipExportModal } from './ZipExportModal';
 import {
   assessProductionDocumentStatus,
+  buildProductionEvaluationReport,
   DestinationIdentityUpdateInput,
   ProductionDocumentAssessment,
 } from '../services/productionModeService';
@@ -676,6 +677,14 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
 
   return (
     <div className="space-y-6" data-export-busy={Boolean(generatingDocType || isExportingAll || isExportingZip)}>
+      {productionMode && <button type="button" className="px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-semibold" onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(buildProductionEvaluationReport(context));
+          setExportSuccessMessage('Laporan evaluasi berhasil disalin.');
+        } catch (error) {
+          setExportErrorMessage(error instanceof Error ? error.message : 'Laporan tidak dapat disalin.');
+        }
+      }}>Salin Laporan Evaluasi</button>}
       <details className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3">
         <summary>Diagnostic ekspor Modul Ajar</summary>
         <pre className="whitespace-pre-wrap select-text">{JSON.stringify(exportDiagnostic || {

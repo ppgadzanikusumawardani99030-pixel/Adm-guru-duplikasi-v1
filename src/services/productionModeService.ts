@@ -1,11 +1,44 @@
 import type { AppStorageStateV5 } from '../types/storageV5';
 import type { DocumentType, TeacherProfile } from '../types';
 import type { DocumentGenerationContext, DocumentValidationResult } from './documentEngine/types';
-import { validateDocumentRequirements } from './documentEngine';
+import { DOCUMENT_CATALOG, validateDocumentRequirements } from './documentEngine';
+import { validateWorkflowDependencies } from './workflowEngine';
 import { isValidDocumentDate } from './documentDateService';
 import { isQuotaExceededError, saveStorageV5, validateStorageStateV5 } from './storageV5';
 
 export const PRODUCTION_MODE_STORAGE_KEY = 'administrasi_guru_production_mode_v1';
+
+/** Quality diagnostics never authorize export; document validators retain that responsibility. */
+export function buildProductionEvaluationReport(context: DocumentGenerationContext): string {
+  const year = context.zipAnnualSource?.yearPlan;
+  const workflow = validateWorkflowDependencies(context);
+  const lines = [
+    'LAPORAN EVALUASI MASTER',
+    `Master: ${year?.id || context.workspace?.id || '-'} | ${year?.identityOnlyImport?.importedAt || '-'}`,
+    `Mapel: ${context.academicSetting.subject} | Kelas: ${context.academicSetting.grade} | Fase: ${context.academicSetting.phase || '-'} | Semester: ${context.academicSetting.semester}`,
+    'Tahap | Kode objek | Jenis masalah | Penyebab | Dampak ekspor | Perbaikan minimal',
+  ];
+  for (const issue of workflow.issues) lines.push(
+    `${issue.module} | ${issue.targetId || issue.code} | WARNING ${issue.code} | ${issue.message} | Tidak mengunci navigasi; ekspor diperiksa per dokumen | Perbaiki hanya data yang disebut pada penyebab.`
+  );
+  for (const [stage, objects] of [['TP', context.tp?.items], ['ATP', context.atp?.items], ['MODUL_AJAR', context.learningPlans]] as const) {
+    for (const object of objects || []) {
+      const value = object as { id: string; code?: string; workflowStatus?: string; status?: string };
+      if ((value.workflowStatus || value.status || 'DRAFT') !== 'SIAP') lines.push(
+        `${stage} | ${value.code || value.id} | WARNING DRAFT | Objek belum dikonfirmasi SIAP | DRAFT tidak menghalangi ekspor | Tinjau kelengkapan objek tanpa regenerasi.`
+      );
+    }
+  }
+  for (const item of DOCUMENT_CATALOG) {
+    try {
+      const validation = validateDocumentRequirements(item.type, { ...context, productionMode: true });
+      for (const reason of validation.missingFields) lines.push(`${item.type} | ${context.activeLearningPlanId || context.activeAssessmentPackageId || '-'} | BLOCKER | ${reason} | Hanya dokumen ini dilewati | Lengkapi data minimum atau tinjau identitas yang disebut.`);
+    } catch (error) {
+      lines.push(`${item.type} | - | BLOCKER struktur | ${error instanceof Error ? error.message : String(error)} | Hanya dokumen ini gagal | Perbaiki struktur data dokumen ini.`);
+    }
+  }
+  return lines.join('\n');
+}
 
 export type ProductionDocumentHealthStatus = 'SIAP_CETAK' | 'DATA_KURANG' | 'GAGAL_RENDER';
 
@@ -53,7 +86,14 @@ export function assessProductionDocumentStatus(
     ...context,
     productionMode: true,
   };
-  const validation = validateDocumentRequirements(type, productionContext);
+  let validation: DocumentValidationResult;
+  try {
+    validation = validateDocumentRequirements(type, productionContext);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    validation = { isValid: false, missingFields: [reason], message: reason };
+    renderError = renderError || reason;
+  }
 
   if (renderError && renderError.trim()) {
     return {

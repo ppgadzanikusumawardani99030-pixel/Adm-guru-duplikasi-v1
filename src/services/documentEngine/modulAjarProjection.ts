@@ -127,7 +127,7 @@ export function buildModulAjarProjection(context: DocumentGenerationContext): Mo
     allowDraftWorkflow: Boolean(context.productionMode),
   });
 
-  if (!validation.valid) {
+  if (!validation.valid && !context.productionMode) {
     return {
       isReady: false,
       error: validation.errors.join('; '),
@@ -141,6 +141,24 @@ export function buildModulAjarProjection(context: DocumentGenerationContext): Mo
   const invalid = (error: string): ModulAjarProjection => ({
     isReady: false, error, resolvedTPs: [], jpResolutionSource: 'UNRESOLVED', validation,
   });
+  if (context.productionMode) {
+    const objectives = (context.tp?.items || []).filter(tp => (selectedPlan.tpIds || []).includes(tp.id) && tp.statement?.trim());
+    const activities = [
+      ...Object.entries(selectedPlan.learningSteps || {}).flatMap(([phase, steps]) => (steps || []).map(step => ({ ...step, phase }))),
+      ...(selectedPlan.learningExperiences || []),
+    ].filter(activity => activity.description?.trim());
+    if (!objectives.length || !activities.length) return invalid('Substansi minimum Modul Ajar: TP terhubung dan kegiatan pembelajaran harus tersedia.');
+    // Export existing teaching substance even when calendar/quality metadata is incomplete.
+    // No invented dates, remapped links, status promotion, or writes to the master.
+    if (!validation.valid || !selectedPlan.learningMeetingIds?.length || !context.learningMeetingSchedules?.length) {
+      const resolvedTPs = objectives.map(tp => ({ id: tp.id, code: tp.code, statement: tp.statement, materialScope: tp.contentScope }));
+      return { isReady: true, plan: selectedPlan, resolvedTPs, meetings: [],
+        sections: [{ title: 'Kegiatan tingkat unit (jadwal pertemuan belum lengkap)',
+          lines: activities.map(activity => `${activity.phase}: ${'title' in activity ? activity.title || '' : ''} ${activity.description}`) }],
+        unitTitle: context.atpUnitMapping?.units.find(unit => unit.id === selectedPlan.unitId)?.title,
+        jpResolutionSource: 'UNRESOLVED', validation };
+    }
+  }
   if (!selectedPlan.unitId || !selectedPlan.learningMeetingIds?.length ||
       !context.atpUnitMapping || !context.unitExecutionPlan || !context.learningMeetingSchedules?.length) {
     return invalid('Lineage Unit → Meeting → LearningPlan belum lengkap.');

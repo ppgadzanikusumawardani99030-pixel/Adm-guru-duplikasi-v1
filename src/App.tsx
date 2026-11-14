@@ -604,6 +604,7 @@ export function App() {
     : semesterAcademicSetting;
 
   const handleEnterAnnualPlanning = () => {
+    if (productionMode && activeYearPlan) { setCurrentStep('annual-planning'); return; }
     const isMerdeka = !isK13(transitionalAcademicSetting);
 
     if (isMerdeka) {
@@ -626,6 +627,7 @@ export function App() {
   };
 
   const handleSelectStep = (step: WorkflowStepId) => {
+    if (productionMode && activeYearPlan && step !== 'admin') { setCurrentStep(step); return; }
     if (step === 'annual-planning') {
       handleEnterAnnualPlanning();
       return;
@@ -1786,6 +1788,15 @@ export function App() {
 
         {/* Step Views */}
         <section className="transition-all duration-150">
+            {productionMode && activeYearPlan && currentStep !== 'admin' && <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm flex items-center justify-between gap-3">
+              <span>Mode Produksi: tahap dapat dibuka meskipun data kosong atau belum lengkap. Kualitas dan kelayakan ekspor diperiksa terpisah per dokumen.</span>
+              <button type="button" className="px-4 py-2 bg-blue-900 text-white rounded-lg shrink-0" onClick={() => {
+                const sequence: WorkflowStepId[] = isK13(transitionalAcademicSetting)
+                  ? ['profile', 'academic', 'k13-kd', 'k13-indikator', 'k13-tujuan', 'admin']
+                  : ['profile', 'academic', 'cp', 'cp-analysis', 'tp', 'atp', 'atp-mapping', 'annual-planning', 'semester', 'admin'];
+                handleSelectStep(sequence[sequence.indexOf(currentStep) + 1] || 'admin');
+              }}>Lanjut</button>
+            </div>}
           {currentStep === 'profile' && (
             <ProfileManager
               profiles={v5State.profiles}

@@ -100,6 +100,11 @@ function resolveSnapshotContext(
   context: DocumentGenerationContext,
   snapshotOverride?: DocumentSnapshot
 ): DocumentGenerationContext {
+  // Production always exports live destination identity, including direct renderer calls.
+  if (context.productionMode) {
+    const live = { ...context, snapshot: undefined };
+    return { ...live, snapshot: createDocumentSnapshot(live, 'docx', context.documentMode) };
+  }
   const snap =
     snapshotOverride ||
     context.snapshot;

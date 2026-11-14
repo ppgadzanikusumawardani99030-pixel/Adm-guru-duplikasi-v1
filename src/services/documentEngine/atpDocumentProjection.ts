@@ -20,6 +20,19 @@ export interface ATPDocumentProjection {
 export function buildATPDocumentProjection(context: DocumentGenerationContext): ATPDocumentProjection {
   const invalid = (error: string): ATPDocumentProjection => ({ isReady: false, error, rationale: '', cpReferenceLines: [], rows: [] });
   const { cp, tp, atp } = context;
+  if (context.productionMode) {
+    const rows: ATPDocumentRow[] = (atp?.items || []).map(item => {
+      const ids = item.linkedTpIds?.length ? item.linkedTpIds : item.tpId ? [item.tpId] : [];
+      const resolvedTPs = (tp?.items || []).filter(objective => ids.includes(objective.id) && objective.statement?.trim())
+        .map(objective => ({ id: objective.id, code: objective.code || objective.id, statement: objective.statement }));
+      const focus = item.focus?.trim() || item.materialScope?.trim() || item.unitTitle?.trim() || '';
+      return { stepNumber: Number.isInteger(item.stepNumber) ? item.stepNumber : null, focus, resolvedTPs,
+        flowLines: [focus, resolvedTPs.length ? 'TP terkait: ' + resolvedTPs.map(objective => '[' + objective.code + ']').join(', ') : 'Referensi TP belum lengkap.'].filter(Boolean) };
+    });
+    if (!rows.length || rows.some(row => !row.focus && !row.resolvedTPs.length)) return invalid('Substansi minimum langkah ATP belum tersedia.');
+    return { isReady: true, rationale: atp?.rationale || '', rows,
+      cpReferenceLines: [cp?.generalDescription || '', ...(cp?.elements || []).map(element => [element.name, element.content].filter(Boolean).join(': '))].filter(Boolean) };
+  }
   if (!cp || !tp?.items?.length || !atp?.items?.length) return invalid('Data CP, TP, dan ATP harus lengkap untuk ekspor dokumen ATP.');
   const cpReferenceLines = [
     ...(cp.generalDescription?.trim() ? [cp.generalDescription.trim()] : []),

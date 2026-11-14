@@ -623,6 +623,13 @@ export async function generateModulAjar(context: DocumentGenerationContext): Pro
       addListParagraph('-');
     }
 
+    if (context.productionMode && !sortedMeetings.length) {
+      for (const section of sharedProjection.sections || []) {
+        addSubSectionTitle(section.title);
+        section.lines.forEach(line => addListParagraph(line));
+      }
+    }
+
     // IV. ASESMEN + KKTP
     addSectionTitle('IV. ASESMEN + KKTP');
 

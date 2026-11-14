@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { WorkflowStepper } from '../src/components/WorkflowStepper';
 import JSZip from 'jszip';
 import { inflateSync } from 'node:zlib';
 import { createTwoSemesterAdministrationImportFixture } from './fixtures/readyAdministrationImportFixture';
@@ -8,6 +11,7 @@ import { prepareCompleteAdministrationProjectImport } from '../src/services/admi
 import { buildImportedProjectExportContext } from '../src/services/identityOnlyProjectExport';
 import {
   assessProductionDocumentStatus,
+  buildProductionEvaluationReport,
   getProductionMode,
   setProductionMode,
   updateDestinationIdentityOnly,
@@ -502,4 +506,30 @@ assert(zipModalSource.includes('skipDownload: false'), 'ZipExportModal must forc
 const appSource = readFileSync('src/App.tsx', 'utf8');
 assert(appSource.includes("addEventListener('beforeunload'"), 'App.tsx must protect memory-only session state on refresh/close');
 
-console.log('ALL_PRODUCTION_MODE_TESTS_PASSED');
+// Flexible production navigation and safety regressions (synthetic fixtures only).
+const defaultImport = prepareCompleteAdministrationProjectImport(source, archive, {
+  mode: 'IDENTITY_ONLY', targetProfileId: 'p2', targetSchoolId: 's2',
+  documentDate: '2026-11-14', productionMode: true,
+});
+assert.equal(defaultImport.state.yearPlans.find(year => year.id === defaultImport.yearPlanId)!.identityOnlyImport?.factualDataExcluded, true);
+const defaultSemesterIds = new Set(defaultImport.state.semesterPlans.filter(plan => plan.yearPlanId === defaultImport.yearPlanId).map(plan => plan.id));
+assert(!defaultImport.state.semesterData.roster.some(entry => defaultSemesterIds.has(entry.semesterPlanId) && entry.value.length));
+const liveSnapshotContext = resolveEffectiveContext({ ...swappedCtx, snapshot: staleSnapshot });
+assert.equal(liveSnapshotContext.profile.name, swappedCtx.profile.name);
+assert.equal(liveSnapshotContext.school.name, swappedCtx.school.name);
+assert.equal(liveSnapshotContext.snapshot?.teacherName, swappedCtx.profile.name);
+assert.equal(liveSnapshotContext.snapshot?.schoolNpsn, swappedCtx.school.npsn);
+assert.equal(liveSnapshotContext.academicSetting.grade, swappedCtx.academicSetting.grade);
+const markup = renderToStaticMarkup(<WorkflowStepper currentStep="admin" onSelectStep={() => {}} {...prodCtx} productionMode />);
+assert(!/disabled=""/.test(markup), 'Every production navigation step must be unlocked');
+const normalMarkup = renderToStaticMarkup(<WorkflowStepper currentStep="admin" onSelectStep={() => {}} {...baseExportCtx} productionMode={false} />);
+assert(/disabled=""/.test(normalMarkup), 'Normal workflow gates must remain enabled');
+const contaminated = structuredClone(swappedCtx);
+contaminated.tp!.items[0].statement += ' GURU_ASAL_TEST';
+assert.equal(validateDocumentRequirements('TP', contaminated).isValid, false, 'Production must block embedded source identity');
+assert.equal(validateDocumentRequirements('CP', contaminated).isValid, true, 'Sibling document must remain exportable');
+const evaluation = buildProductionEvaluationReport(prodCtx);
+assert(evaluation.includes('WARNING') && evaluation.includes('DRAFT') && evaluation.includes('Semester:'));
+assert(evaluation.includes(prodCtx.tp!.items[0].code || prodCtx.tp!.items[0].id));
+assert(readFileSync('src/components/AdminDocsExport.tsx', 'utf8').includes('navigator.clipboard.writeText(buildProductionEvaluationReport(context))'));
+console.log('ALL_PRODUCTION_MODE_TESTS_PASSED (synthetic fixtures; real PAI 3 / PJOK 4 ZIP unavailable)');

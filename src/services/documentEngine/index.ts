@@ -298,15 +298,15 @@ export function validateDocumentRequirements(
   }
 
   // Identity masking never bypasses the document-date or substance requirements.
+  const identityIssue = sourceIdentityExportIssue(type, context);
+  if (identityIssue) return { isValid: false, missingFields: [identityIssue], message: identityIssue, targetStep: 'academic' };
   if (!context.productionMode) {
-    const identityIssue = sourceIdentityExportIssue(type, context);
-    if (identityIssue) return { isValid: false, missingFields: [identityIssue], message: identityIssue, targetStep: 'academic' };
     const importIssue = importDocumentPolicyIssue(type, context);
     if (importIssue) return { isValid: false, missingFields: [importIssue], message: importIssue, targetStep: 'academic' };
   }
   {
     const rawDate =
-      context.snapshot
+      context.snapshot && !context.productionMode
         ? context.snapshot.documentDate
         : (
             context.documentDate ??
@@ -415,7 +415,7 @@ export function validateDocumentRequirements(
     // Kurikulum Merdeka
     const cpHasContent = !!(
       context.cp?.generalDescription?.trim() ||
-      (context.cp?.elements && context.cp.elements.length > 0)
+      context.cp?.elements?.some(element => element.content?.trim() || element.description?.trim())
     );
     const tpCount = context.tp?.items?.length || 0;
     const atpCount = context.atp?.items?.length || 0;
@@ -428,7 +428,7 @@ export function validateDocumentRequirements(
         break;
 
       case 'TP':
-        if (tpCount === 0) {
+        if (tpCount === 0 || (context.productionMode && !context.tp?.items?.some(item => item.statement?.trim()))) {
           missingFields.push('Tujuan Pembelajaran (TP) belum disusun');
         }
         break;
@@ -440,7 +440,7 @@ export function validateDocumentRequirements(
         break;
 
       case 'ATP':
-        if (tpCount === 0) {
+        if (tpCount === 0 && !context.productionMode) {
           missingFields.push('Tujuan Pembelajaran (TP) belum disusun');
         }
         if (atpCount === 0) {
@@ -528,6 +528,13 @@ export function validateDocumentRequirements(
 
       case 'KKTP':
         {
+          if (context.productionMode) {
+            if (!context.tp?.items?.some(item => item.statement?.trim()) ||
+                !context.assessmentCriteria?.some(criterion => criterion.description?.trim())) {
+              missingFields.push('Substansi KKTP minimum: TP dan kriteria ketercapaian belum tersedia.');
+            }
+            break;
+          }
           const kktpValidation = validateKKTPData(
             context.assessmentCriteria || [],
             context.tp,
