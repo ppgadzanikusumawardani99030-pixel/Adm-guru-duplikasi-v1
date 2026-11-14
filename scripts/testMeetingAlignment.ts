@@ -175,7 +175,7 @@ test('calendar same-count revision, stale data, new factual dependencies and tam
 });
 test('save failure never partially changes plan, schedules or documents',()=>{
   const state=fixture([2,1]);addSchedule(state);const r=review(state),next=r.apply(),before=memory.get(storage.STORAGE_KEY_V5);
-  failWrites=true;try {assert.throws(()=>storage.saveUnitExecutionPlanV5('y',next,{draft:r.draft,proposal:r.proposal}),/quota/);}finally{failWrites=false;}
+  failWrites=true;try {assert.throws(()=>storage.saveUnitExecutionPlanV5('y',next,{draft:r.draft,proposal:r.proposal}),(err:unknown)=>err instanceof storage.StorageQuotaExceededError && err.code==='QUOTA_EXCEEDED' && err.name==='StorageQuotaExceededError' && storage.isQuotaExceededError(err));}finally{failWrites=false;}
   assert.equal(memory.get(storage.STORAGE_KEY_V5),before);
 });
 test('single Bab, unchanged semester and invalid minimum/capacity',()=>{
@@ -420,7 +420,7 @@ test('final generation rejects estimates, invalid AI counts/coverage, stale cale
   assert.throws(()=>allocation.buildCalendarMeetingCandidate(r.draft,r.source.mapping,r.source.capacity,r.source.context,'COMPLETE',bad,newId),/Jumlah/);
   const incomplete=calendarContent(r.request,r.source.mapping);incomplete.units[0].meetings.forEach(m=>m.materialIds=[]);
   assert.throws(()=>allocation.buildCalendarMeetingCandidate(r.draft,r.source.mapping,r.source.capacity,r.source.context,'COMPLETE',incomplete,newId));
-  const before=memory.get(storage.STORAGE_KEY_V5);failWrites=true;try{assert.throws(()=>storage.saveUnitExecutionPlanV5('y',r.result.candidate,{draft:r.draft,calendarGeneration:r.result}),/quota/);}finally{failWrites=false;}assert.equal(memory.get(storage.STORAGE_KEY_V5),before);
+  const before=memory.get(storage.STORAGE_KEY_V5);failWrites=true;try{assert.throws(()=>storage.saveUnitExecutionPlanV5('y',r.result.candidate,{draft:r.draft,calendarGeneration:r.result}),(err:unknown)=>err instanceof storage.StorageQuotaExceededError && err.code==='QUOTA_EXCEEDED' && err.name==='StorageQuotaExceededError' && storage.isQuotaExceededError(err));}finally{failWrites=false;}assert.equal(memory.get(storage.STORAGE_KEY_V5),before);
   const changed=storage.loadStorageV5();changed.semesterData.academicCalendar[0].value.calendar.updatedAt='new-calendar';storage.saveStorageV5(changed);const latest=memory.get(storage.STORAGE_KEY_V5);
   assert.throws(()=>storage.saveUnitExecutionPlanV5('y',r.result.candidate,{draft:r.draft,calendarGeneration:r.result}),/berubah/);assert.equal(memory.get(storage.STORAGE_KEY_V5),latest);
 });

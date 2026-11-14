@@ -1,6 +1,7 @@
 import type { MeetingAlignmentApproval } from './services/meetingAlignmentService';
 import { SubjectSelect } from './components/SubjectSelect';
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import saveAs from 'file-saver';
 import {
   WorkflowStepId,
   TeacherProfile,
@@ -83,6 +84,7 @@ import {
   saveRemedialV5,
   saveEnrichmentV5,
   isQuotaExceededError,
+  serializeBackupV5,
 } from './services/storageV5';
 import { getRuntimeContextV5 } from './services/runtimeV5';
 import {
@@ -145,6 +147,7 @@ export function App() {
   const [isCompleteProjectImportOpen, setIsCompleteProjectImportOpen] = useState(false);
   const [importedYearForExport, setImportedYearForExport] = useState<string>();
   const [appNotice, setAppNotice] = useState<{ type: 'error' | 'warning' | 'info'; message: string } | null>(null);
+  const [memoryOnlyStateWarning, setMemoryOnlyStateWarning] = useState<string | null>(null);
 
   // New Workspace form state (Canonical Merdeka Annual Hierarchy - No Semester)
   const [newWsGrade, setNewWsGrade] = useState('');
@@ -152,6 +155,16 @@ export function App() {
   const [newWsSubject, setNewWsSubject] = useState('');
   const [newWsYear, setNewWsYear] = useState('');
   const [newWsDocumentDate, setNewWsDocumentDate] = useState<string>('');
+
+  useEffect(() => {
+    if (!memoryOnlyStateWarning || typeof window === 'undefined') return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [memoryOnlyStateWarning]);
 
   // Reload data from V5 storage authority
   const refreshV5 = useCallback(() => {
@@ -619,14 +632,17 @@ export function App() {
     }
     const isMerdeka = !isK13(transitionalAcademicSetting);
     if (isMerdeka && step === 'admin' && !isActiveSemesterValid) {
-      if (productionMode && semesterPlansForActiveYear.length > 0) {
+      if (typeof productionMode !== 'undefined' && productionMode && semesterPlansForActiveYear.length > 0) {
         const defaultSem = semesterPlansForActiveYear.find((sp) => sp.semester === 1) || semesterPlansForActiveYear[0];
         try {
           setActiveSemesterPlanV5(defaultSem.id);
           refreshV5();
         } catch (err: any) {
-          if (isQuotaExceededError(err)) {
+          if (typeof isQuotaExceededError === 'function' && isQuotaExceededError(err)) {
             setV5State((prev) => ({ ...prev, activeSemesterPlanId: defaultSem.id }));
+            if (typeof setMemoryOnlyStateWarning === 'function') {
+              setMemoryOnlyStateWarning('Penyimpanan browser (localStorage) penuh. Semester aktif hanya diterapkan di memori sesi ini.');
+            }
           }
         }
         setCurrentStep('admin');
@@ -646,9 +662,11 @@ export function App() {
     setProductionModeState(enabled);
     const saved = setProductionMode(enabled);
     if (!saved) {
+      const warnMsg = 'Preferensi Mode Produksi aktif hanya di memori sesi ini karena penyimpanan browser (localStorage) penuh. Data lama tetap aman.';
+      setMemoryOnlyStateWarning(warnMsg);
       setAppNotice({
         type: 'warning',
-        message: 'Preferensi Mode Produksi aktif untuk sesi ini (penyimpanan browser penuh). Data pengguna tidak dihapus.',
+        message: warnMsg,
       });
     } else if (enabled) {
       setAppNotice({
@@ -665,6 +683,7 @@ export function App() {
         } catch (err: any) {
           if (isQuotaExceededError(err)) {
             setV5State((prev) => ({ ...prev, activeSemesterPlanId: defaultSem.id }));
+            setMemoryOnlyStateWarning('Penyimpanan browser (localStorage) penuh. Semester aktif hanya diterapkan di memori sesi ini.');
           }
         }
       }
@@ -691,13 +710,42 @@ export function App() {
       });
       setV5State(res.state);
       if (!res.persisted && res.quotaError) {
-        setAppNotice({ type: 'warning', message: res.quotaError });
-        return { ok: true, warning: res.quotaError };
+        const memWarn = `${res.quotaError} Perubahan identitas tujuan BELUM tersimpan di localStorage (hanya aktif di memori sesi ini).`;
+        setMemoryOnlyStateWarning(memWarn);
+        setAppNotice({ type: 'warning', message: memWarn });
+        return { ok: true, warning: memWarn };
       }
+      setMemoryOnlyStateWarning(null);
       return { ok: true };
     } catch (err: any) {
       const message = err instanceof Error ? err.message : 'Gagal menyimpan identitas tujuan.';
       return { ok: false, error: message };
+    }
+  };
+
+  const handleExportInMemoryBackup = async (kind: 'zip' | 'json') => {
+    try {
+      if (kind === 'zip' && activeYearPlan) {
+        await downloadCompleteProjectZip(v5State, activeYearPlan.id);
+        setAppNotice({
+          type: 'info',
+          message: 'Cadangan proyek lengkap (.zip) dari sesi aktif berhasil diunduh.',
+        });
+        return;
+      }
+      const json = serializeBackupV5(v5State);
+      const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+      const dateStr = new Date().toISOString().split('T')[0];
+      saveAs(blob, `Administrasi_Guru_AI_Backup_Sesi_${dateStr}.json`);
+      setAppNotice({
+        type: 'info',
+        message: 'Cadangan data V5 (.json) dari memori sesi aktif berhasil diunduh.',
+      });
+    } catch (err: any) {
+      setAppNotice({
+        type: 'error',
+        message: err instanceof Error ? err.message : 'Gagal mengekspor cadangan sesi.',
+      });
     }
   };
 
@@ -1036,11 +1084,15 @@ export function App() {
       setActiveSemesterPlanV5(semesterPlanId);
       refreshV5();
     } catch (err: any) {
-      if (isQuotaExceededError(err)) {
+      if (typeof isQuotaExceededError === 'function' && isQuotaExceededError(err)) {
         setV5State((prev) => ({ ...prev, activeSemesterPlanId: semesterPlanId }));
+        const warnMsg = 'Semester diganti di memori sesi ini karena penyimpanan browser (localStorage) penuh. Data lama tetap aman.';
+        if (typeof setMemoryOnlyStateWarning === 'function') {
+          setMemoryOnlyStateWarning(warnMsg);
+        }
         setAppNotice({
           type: 'warning',
-          message: 'Semester diganti di memori sesi ini karena penyimpanan browser penuh.',
+          message: warnMsg,
         });
         return;
       }
@@ -1650,6 +1702,43 @@ export function App() {
       {/* Main Workspace Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {activeYearPlan?.identityOnlyImport?.mode && activeYearPlan.identityOnlyImport.mode !== 'IDENTITY_ONLY' && <div className="bg-blue-50 border rounded-xl p-3 flex flex-wrap items-center justify-between gap-2 text-sm"><span>Proyek impor: perencanaan dapat dilanjutkan. Ekspor memeriksa ulang waktu, kelas, dan kelengkapan dokumen.</span><button type="button" className="font-bold underline" onClick={()=>{setImportedYearForExport(activeYearPlan.id);setIsCompleteProjectImportOpen(true);}}>Unduh ZIP Administrasi</button></div>}
+        {memoryOnlyStateWarning && (
+          <div
+            id="memory-only-quota-warning"
+            role="alert"
+            className="p-4 rounded-xl border-2 border-amber-400 bg-amber-50 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs"
+          >
+            <div className="flex items-start gap-2.5 text-xs sm:text-sm">
+              <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <div className="font-bold text-amber-950">
+                  Peringatan: Data Sesi Belum Tersimpan ke Penyimpanan Browser (localStorage Penuh)
+                </div>
+                <p className="text-amber-900">
+                  {memoryOnlyStateWarning} Data lama Anda tetap aman dan tidak dihapus. Jika halaman di-refresh atau tab ditutup sebelum ekspor, perubahan sesi ini akan hilang.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              {activeYearPlan && (
+                <button
+                  type="button"
+                  onClick={() => handleExportInMemoryBackup('zip')}
+                  className="px-3 py-1.5 rounded-lg bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold cursor-pointer"
+                >
+                  Unduh Cadangan Proyek (.zip)
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleExportInMemoryBackup('json')}
+                className="px-3 py-1.5 rounded-lg bg-white hover:bg-amber-100 text-amber-950 border border-amber-300 text-xs font-bold cursor-pointer"
+              >
+                Ekspor Backup V5 (.json)
+              </button>
+            </div>
+          </div>
+        )}
         {/* App Notification Banner */}
         {appNotice && (
           <div
@@ -2180,10 +2269,11 @@ export function App() {
             setV5State(result.state);
             setIsCompleteProjectImportOpen(false);
             setCurrentStep('admin');
+            setMemoryOnlyStateWarning(quotaWarning || null);
             setAppNotice({
               type: quotaWarning ? 'warning' : 'info',
               message: quotaWarning
-                ? `Impor master selesai di memori sesi ini (${quotaWarning})`
+                ? `Impor master hanya aktif di memori sesi (BELUM tersimpan di localStorage): ${quotaWarning}`
                 : 'Master ZIP berhasil diimpor dalam Mode Produksi. Pusat Dokumen terbuka tanpa konfirmasi Step 01–07 atau AI.',
             });
             return;

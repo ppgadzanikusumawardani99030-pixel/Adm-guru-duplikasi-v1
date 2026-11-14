@@ -399,11 +399,12 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
       setExportErrorMessage('Snapshot lama belum tersedia.');
       return;
     }
+    const isProdMode = typeof productionMode !== 'undefined' && Boolean(productionMode);
     let effectiveContext: DocumentGenerationContext;
     try {
       effectiveContext = type === 'MODUL_AJAR'
-        ? prepareModulAjarExportContext(context, format, source, historicalSnapshot)
-        : resolveEffectiveContext(context, !forceNew && existingRec?.snapshot
+        ? prepareModulAjarExportContext(context, format, isProdMode ? 'live' : source, historicalSnapshot)
+        : resolveEffectiveContext(context, !forceNew && !isProdMode && existingRec?.snapshot
         ? existingRec.snapshot : createDocumentSnapshot(context, format, documentMode, type));
     } catch (error) {
       setExportErrorMessage(error instanceof Error ? error.message : 'Konteks ekspor tidak valid.');
@@ -1405,7 +1406,7 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
             const activeRecord = getDocRecord(activePreviewType);
             const storedSnapshot = activePreviewType === 'MODUL_AJAR'
               ? historicalModulSnapshot || activeRecord?.snapshot : activeRecord?.snapshot;
-            const activeSnapshot = activePreviewType === 'MODUL_AJAR' ? undefined : storedSnapshot;
+            const activeSnapshot = (activePreviewType === 'MODUL_AJAR' || productionMode) ? undefined : storedSnapshot;
 
             const previewContext = resolveEffectiveContext(context, activeSnapshot);
             const previewSchoolName = previewContext.school.name || '-';
@@ -1424,6 +1425,9 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
             const previewDate = documentMode === 'blank' ? (previewContext.snapshot?.formattedDocumentDate || (previewContext.documentDate ? formatOfficialSnapshotDate(previewContext.documentDate) : '-')) : activeSnapshot?.generatedAt
               ? formatOfficialSnapshotDate(activeSnapshot.generatedAt)
               : dateFormatted;
+            const canDownloadActivePreview = productionMode
+              ? (productionAssessments.get(activePreviewType)?.canDownload ?? validateDocumentRequirements(activePreviewType, context).isValid)
+              : validateDocumentRequirements(activePreviewType, context).isValid;
 
             return (
               <>
@@ -1448,25 +1452,25 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleGenerateSingleDoc(activePreviewType, 'docx', false)}
-                      disabled={generatingDocType === `${activePreviewType}-docx` || !validateDocumentRequirements(activePreviewType, context).isValid}
+                      disabled={generatingDocType === `${activePreviewType}-docx` || !canDownloadActivePreview}
                       className="text-xs font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 cursor-pointer bg-blue-50 px-2.5 py-1.5 rounded-lg border border-blue-200 disabled:opacity-50"
                       title={activeSnapshot ? 'Unduh DOCX sesuai snapshot historis tersimpan' : 'Unduh Dokumen DOCX'}
                     >
                       <Download className="w-3.5 h-3.5" />
-                      <span>{activePreviewType === 'MODUL_AJAR' ? 'Unduh DOCX Terbaru' : activeSnapshot ? 'Unduh DOCX (Snapshot)' : 'Unduh DOCX'}</span>
+                      <span>{productionMode ? 'Unduh DOCX' : activePreviewType === 'MODUL_AJAR' ? 'Unduh DOCX Terbaru' : activeSnapshot ? 'Unduh DOCX (Snapshot)' : 'Unduh DOCX'}</span>
                     </button>
 
                     <button
                       onClick={() => handleGenerateSingleDoc(activePreviewType, 'pdf', false)}
-                      disabled={generatingDocType === `${activePreviewType}-pdf` || !validateDocumentRequirements(activePreviewType, context).isValid}
+                      disabled={generatingDocType === `${activePreviewType}-pdf` || !canDownloadActivePreview}
                       className="text-xs font-bold text-rose-700 hover:text-rose-900 flex items-center gap-1 cursor-pointer bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-200 disabled:opacity-50"
                       title={activeSnapshot ? 'Unduh PDF sesuai snapshot historis tersimpan' : 'Unduh Dokumen PDF'}
                     >
                       <Printer className="w-3.5 h-3.5" />
-                      <span>{activePreviewType === 'MODUL_AJAR' ? 'Unduh PDF Terbaru' : activeSnapshot ? 'Unduh PDF (Snapshot)' : 'Unduh PDF'}</span>
+                      <span>{productionMode ? 'Unduh PDF' : activePreviewType === 'MODUL_AJAR' ? 'Unduh PDF Terbaru' : activeSnapshot ? 'Unduh PDF (Snapshot)' : 'Unduh PDF'}</span>
                     </button>
 
-                    {activePreviewType === 'MODUL_AJAR' && storedSnapshot && (
+                    {activePreviewType === 'MODUL_AJAR' && storedSnapshot && !productionMode && (
                       <>
                         <button onClick={() => handleGenerateSingleDoc('MODUL_AJAR', 'docx', false, 'snapshot')}
                           disabled={Boolean(generatingDocType)} className="text-xs underline px-2 py-1.5">

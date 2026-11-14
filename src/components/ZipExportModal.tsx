@@ -107,7 +107,7 @@ export const ZipExportModal: React.FC<ZipExportModalProps> = ({
             setProgressText(`[${pct}%] Mengepak (${current}/${total}): ${docTitle}`);
           },
         },
-        context
+        { ...context, skipDownload: false }
       );
 
       if (!result.zipBlob || result.zipBlob.size === 0) {

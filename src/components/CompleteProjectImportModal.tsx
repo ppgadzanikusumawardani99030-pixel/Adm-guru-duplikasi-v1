@@ -186,9 +186,10 @@ export function CompleteProjectImportModal({ state, onClose, onSuccess, onContin
                 saveStorageV5(prepared.state);
               } catch (persistErr) {
                 if (isQuotaExceededError(persistErr)) {
-                  quotaWarning = persistErr instanceof Error
+                  const baseMsg = persistErr instanceof Error
                     ? persistErr.message
-                    : 'Penyimpanan browser penuh (QuotaExceededError). Proyek aktif di memori sesi ini; data lama Anda tidak dihapus.';
+                    : 'Kapasitas penyimpanan browser (localStorage) penuh. Data lama Anda tetap aman dan tidak dihapus secara otomatis.';
+                  quotaWarning = `${baseMsg} Proyek hasil impor BELUM tersimpan di localStorage dan hanya aktif di memori sesi ini — jangan refresh halaman sebelum mengekspor dokumen atau cadangan proyek.`;
                 } else {
                   throw persistErr;
                 }

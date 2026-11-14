@@ -935,6 +935,7 @@ export function parseBackupV5(jsonString: string): AppStorageStateV5 {
 }
 
 export class StorageQuotaExceededError extends Error {
+  readonly code = 'QUOTA_EXCEEDED' as const;
   constructor(
     message = 'Kapasitas penyimpanan browser (localStorage) penuh. Data lama Anda tetap aman dan tidak dihapus secara otomatis.'
   ) {

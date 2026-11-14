@@ -18,7 +18,11 @@ import {
   generatePdfDocument,
   validateDocumentRequirements,
 } from '../src/services/documentEngine';
-import { STORAGE_KEY_V5, StorageQuotaExceededError, isQuotaExceededError, saveStorageV5 } from '../src/services/storageV5';
+import { createDocumentSnapshot, resolveEffectiveContext } from '../src/services/documentEngine/snapshot';
+import { prepareModulAjarExportContext } from '../src/services/documentEngine/modulAjarExportContext';
+import { STORAGE_KEY_V5, StorageQuotaExceededError, isQuotaExceededError, parseBackupV5, saveStorageV5, serializeBackupV5 } from '../src/services/storageV5';
+import { readFileSync } from 'node:fs';
+import { evaluateExpression, initializer } from './helpers/uiContractHarness';
 
 async function blobBytes(blob: Blob): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
@@ -431,5 +435,71 @@ assert.equal(largeZipHarness.downloads.length, 1, 'Large project ZIP must trigge
 assert(largeZipResult.zipBlob && largeZipResult.zipBlob.size > 10000, 'Large project ZIP must be substantial and non-empty');
 assert((largeZipResult.successCount || 0) >= 10, `Large project must export >=10 items, got ${largeZipResult.successCount}`);
 assert.equal(largeImported.state.documents.length, docsBeforeLargeZip, 'Production ZIP export must not bloat state.documents');
+
+// ---------------------------------------------------------------------------
+// 8. Regresi: Production Mode single download abaikan snapshot lama & cadangan memori saat quota penuh
+// ---------------------------------------------------------------------------
+const staleSnapshot = createDocumentSnapshot(
+  {
+    ...swappedCtx,
+    profile: { ...swappedCtx.profile, name: 'GURU_ASAL_TEST', nip: '0000' },
+    school: { ...swappedCtx.school, name: 'SEKOLAH_ASAL_TEST', principalName: 'KEPSEK_ASAL_TEST' },
+  },
+  'docx',
+  'data',
+  'PROTA'
+);
+const singleDownloads: { blob: Blob; fileName: string }[] = [];
+const singleHandler = evaluateExpression(
+  initializer('src/components/AdminDocsExport.tsx', 'handleGenerateSingleDoc'),
+  {
+    context: swappedCtx,
+    academicSetting: swappedCtx.academicSetting,
+    workspace: swappedCtx.workspace,
+    documentMode: 'data',
+    productionMode: true,
+    localDocs: [],
+    historicalModulSnapshot: staleSnapshot,
+    getDocRecord: () => ({ id: 'doc-stale', type: 'PROTA', snapshot: staleSnapshot }),
+    prepareModulAjarExportContext,
+    resolveEffectiveContext,
+    createDocumentSnapshot,
+    validateDocumentRequirements,
+    generateDocument: async (_type: any, ctx: any) => generateDocument(_type, { ...ctx, skipDownload: true }),
+    generatePdfDocument,
+    saveAs: (blob: Blob, fileName: string) => singleDownloads.push({ blob, fileName }),
+    setGeneratingDocType: () => {},
+    setExportErrorMessage: (m: string | null) => { if (m) assert.fail(m); },
+    setExportSuccessMessage: () => {},
+    setRenderErrorsByType: () => {},
+    setLocalDocs: () => {},
+    onUpdateDocuments: undefined,
+    formatOfficialSnapshotDate: (v: string) => v,
+    setTimeout: () => 0,
+  }
+);
+await singleHandler('PROTA', 'pdf');
+assert.equal(singleDownloads.length, 1);
+const singlePdfText = decodePdfStreams(await blobBytes(singleDownloads[0].blob));
+assert(singlePdfText.includes('BU SITI AMINAH, S.Pd') || singlePdfText.includes('SDN HARAPAN BANGSA 09'), 'Production single download must use swapped destination identity');
+assert(!singlePdfText.includes('GURU_ASAL_TEST') && !singlePdfText.includes('SEKOLAH_ASAL_TEST'), 'Production single download must NEVER leak stale imported snapshot identity');
+
+// In-memory backup ZIP & JSON when localStorage is full
+simulateQuotaExceeded = true;
+memory.set('user_precious_data', 'DO_NOT_DELETE_THIS');
+const backupZipBytes = await createCompleteProjectZip(inMemorySwap.state, imported.yearPlanId);
+const parsedBackupArchive = await readCompleteProjectZip(backupZipBytes);
+assert.equal(parsedBackupArchive.project.profiles[0].name, 'PAK DARMAWAN, S.Pd', 'In-memory ZIP backup must preserve swapped session identity');
+const backupJson = serializeBackupV5(inMemorySwap.state);
+const parsedBackupState = parseBackupV5(backupJson);
+assert.equal(parsedBackupState.profiles.find((p) => p.id === 'p2')?.name, 'PAK DARMAWAN, S.Pd', 'In-memory V5 JSON backup must preserve session identity');
+assert.equal(memory.get('user_precious_data'), 'DO_NOT_DELETE_THIS');
+simulateQuotaExceeded = false;
+
+// UI contract check: ZipExportModal forces skipDownload: false and App.tsx has beforeunload guard
+const zipModalSource = readFileSync('src/components/ZipExportModal.tsx', 'utf8');
+assert(zipModalSource.includes('skipDownload: false'), 'ZipExportModal must force skipDownload: false');
+const appSource = readFileSync('src/App.tsx', 'utf8');
+assert(appSource.includes("addEventListener('beforeunload'"), 'App.tsx must protect memory-only session state on refresh/close');
 
 console.log('ALL_PRODUCTION_MODE_TESTS_PASSED');

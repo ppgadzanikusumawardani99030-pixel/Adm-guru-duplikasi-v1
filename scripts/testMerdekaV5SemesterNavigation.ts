@@ -16,6 +16,8 @@ import {
   saveTPV5,
   saveATPV5,
   STORAGE_KEY_V5,
+  isQuotaExceededError,
+  StorageQuotaExceededError,
 } from '../src/services/storageV5';
 import { getRuntimeContextV5 } from '../src/services/runtimeV5';
 import { CPData, CPAnalysisData, TPData, ATPData, WorkflowStepId } from '../src/types';
@@ -323,20 +325,71 @@ runTest('SemesterSelector renders real records, rejects foreign selection, and c
   assert.deepEqual(selected,[ready.semesterPlans[0].id]);byId(tree,'btn-next-to-admin-from-semester').props.onClick();assert.equal(next,1);
   assert.match(nodeText(byId(tree,'btn-back-to-atp')),/Perencanaan Tahunan \(08\)/);byId(tree,'btn-back-to-atp').props.onClick();assert.equal(back,1);
 });
-runTest('App selects semester using V5 authority, refreshes only after success, and reports invalid IDs',()=>{
-  let refreshed=0;const notices:any[]=[];
-  const select=appCallback('handleSelectSemester',{setActiveSemesterPlanV5,refreshV5:()=>refreshed++,setAppNotice:(n:any)=>notices.push(n)});
+runTest('App selects semester using V5 authority, refreshes only after success, handles QuotaExceeded fallback, and reports invalid IDs',()=>{
+  let refreshed=0;const notices:any[]=[];const memStates:any[]=[];const memWarnings:any[]=[];
+  const select=appCallback('handleSelectSemester',{
+    setActiveSemesterPlanV5,
+    refreshV5:()=>refreshed++,
+    setAppNotice:(n:any)=>notices.push(n),
+    isQuotaExceededError,
+    setV5State:(updater:any)=>memStates.push(typeof updater==='function'?updater({activeSemesterPlanId:''}):updater),
+    setMemoryOnlyStateWarning:(msg:any)=>memWarnings.push(msg),
+  });
   select(ready.semesterPlans[1].id);assert.equal(getRuntimeContextV5().activeSemesterPlan?.id,ready.semesterPlans[1].id);assert.equal(refreshed,1);
-  select('missing');assert.equal(refreshed,1);assert.equal(notices.length,1);
+  select('missing');assert.equal(refreshed,1);assert.equal(notices.length,1);assert.equal(notices[0].type,'error');
+
+  const selectOnQuota=appCallback('handleSelectSemester',{
+    setActiveSemesterPlanV5:()=>{throw new StorageQuotaExceededError();},
+    refreshV5:()=>refreshed++,
+    setAppNotice:(n:any)=>notices.push(n),
+    isQuotaExceededError,
+    setV5State:(updater:any)=>memStates.push(typeof updater==='function'?updater({activeSemesterPlanId:''}):updater),
+    setMemoryOnlyStateWarning:(msg:any)=>memWarnings.push(msg),
+  });
+  selectOnQuota(ready.semesterPlans[0].id);
+  assert.equal(refreshed,1);
+  assert.equal(memStates[0].activeSemesterPlanId,ready.semesterPlans[0].id);
+  assert.equal(notices[1].type,'warning');
+  assert(typeof memWarnings[0]==='string' && memWarnings[0].length>0);
 });
-runTest('App admin navigation rejects missing semester for Merdeka but preserves K13 route',()=>{
+runTest('App admin navigation rejects missing semester for Merdeka in normal mode, allows production auto-select, and preserves K13 route',()=>{
   for(const curriculumType of ['KURIKULUM_MERDEKA','K13']) {
     let step='';const notices:any[]=[];let annual=0;
-    const select=appCallback('handleSelectStep',{isK13,transitionalAcademicSetting:{...ctx.academicSetting,curriculumType,curriculum:curriculumType==='K13'?'Kurikulum 2013':'Kurikulum Merdeka'},isActiveSemesterValid:false,
-      handleEnterAnnualPlanning:()=>annual++,setCurrentStep:(s:string)=>step=s,setAppNotice:(n:any)=>notices.push(n)});
+    const select=appCallback('handleSelectStep',{
+      isK13,
+      transitionalAcademicSetting:{...ctx.academicSetting,curriculumType,curriculum:curriculumType==='K13'?'Kurikulum 2013':'Kurikulum Merdeka'},
+      isActiveSemesterValid:false,
+      productionMode:false,
+      semesterPlansForActiveYear:ready.semesterPlans,
+      setActiveSemesterPlanV5,
+      refreshV5:()=>{},
+      isQuotaExceededError,
+      setV5State:()=>{},
+      handleEnterAnnualPlanning:()=>annual++,
+      setCurrentStep:(s:string)=>step=s,
+      setAppNotice:(n:any)=>notices.push(n),
+    });
     select('admin');assert.equal(step,curriculumType==='K13'?'admin':'semester');assert.equal(notices.length,curriculumType==='K13'?0:1);
     select('annual-planning');assert.equal(annual,1);
   }
+  let prodStep='';let prodRefreshed=0;
+  const prodSelect=appCallback('handleSelectStep',{
+    isK13,
+    transitionalAcademicSetting:{...ctx.academicSetting,curriculumType:'KURIKULUM_MERDEKA',curriculum:'Kurikulum Merdeka'},
+    isActiveSemesterValid:false,
+    productionMode:true,
+    semesterPlansForActiveYear:ready.semesterPlans,
+    setActiveSemesterPlanV5,
+    refreshV5:()=>prodRefreshed++,
+    isQuotaExceededError,
+    setV5State:()=>{},
+    handleEnterAnnualPlanning:()=>{},
+    setCurrentStep:(s:string)=>prodStep=s,
+    setAppNotice:()=>{},
+  });
+  prodSelect('admin');
+  assert.equal(prodStep,'admin');
+  assert.equal(prodRefreshed,1);
 });
 // Formerly no-op handlers are now real scoped persistence. Verify writes, guards,
 // refresh order and errors by executing each callback, not searching its source.
