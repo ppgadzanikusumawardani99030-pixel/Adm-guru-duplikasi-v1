@@ -415,7 +415,12 @@ export function validateDocumentRequirements(
     // Kurikulum Merdeka
     const cpHasContent = !!(
       context.cp?.generalDescription?.trim() ||
-      context.cp?.elements?.some(element => element.content?.trim() || element.description?.trim())
+      context.cp?.elements?.some(
+        element =>
+          element.content?.trim() ||
+          element.sourceText?.trim() ||
+          element.subelements?.some(sub => sub.content?.trim() || sub.sourceText?.trim())
+      )
     );
     const tpCount = context.tp?.items?.length || 0;
     const atpCount = context.atp?.items?.length || 0;
@@ -453,7 +458,7 @@ export function validateDocumentRequirements(
         break;
 
       case 'PEMETAAN_ATP_UNIT': {
-        if (tpCount === 0) {
+        if (tpCount === 0 && !context.productionMode) {
           missingFields.push('Tujuan Pembelajaran (TP) belum disusun');
         }
         if (atpCount === 0) {

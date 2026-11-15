@@ -56,6 +56,7 @@ interface CPAnalysisManagerProps {
   onSaveCPAnalysis: (analysis: CPAnalysisData) => boolean;
   onNextStep: () => void;
   onBackToCP: () => void;
+  productionMode?: boolean;
 }
 
 export function getInitialCPAnalysisItems(cpAnalysis?: CPAnalysisData | null): CPAnalysisItem[] {
@@ -99,6 +100,7 @@ export const CPAnalysisManager: React.FC<CPAnalysisManagerProps> = ({
   onSaveCPAnalysis,
   onNextStep,
   onBackToCP,
+  productionMode = false,
 }) => {
   const [reviewedSnapshot,setReviewedSnapshot]=useState('');
   const [items, setItems] = useState<CPAnalysisItem[]>(() => getInitialCPAnalysisItems(cpAnalysis));
@@ -1107,6 +1109,17 @@ export const CPAnalysisManager: React.FC<CPAnalysisManagerProps> = ({
           <ArrowLeft className="w-4 h-4" />
           Kembali ke CP (03)
         </button>
+
+        {productionMode && (
+          <button
+            type="button"
+            onClick={onNextStep}
+            className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+          >
+            <span>Lanjut Mode Produksi (05)</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        )}
 
         <button
           type="button"

@@ -656,138 +656,43 @@ export async function generatePdfDocument(
     case 'MODUL_AJAR': {
       const projection = buildModulAjarProjection(context);
 
-      {
-        if (!projection.isReady || !projection.plan) {
-          throw new Error(projection.error || 'PDF Modul Ajar belum siap.');
-        }
+      if (!projection.isReady || !projection.plan) {
+        throw new Error(projection.error || 'PDF Modul Ajar belum siap.');
       }
 
       const matchedPlan = projection.plan;
 
-      title = ('Modul Ajar / RPP Berdiferensiasi');
+      title = 'Modul Ajar / RPP Berdiferensiasi';
       subTitle = `${subject} — ${grade} (${academicSetting?.phase || '-'}) — Semester ${semester}`;
       fileName = `Modul_Ajar_${cleanSubject}_${cleanGrade}.pdf`;
 
-      {
-        sections.push({ type: 'paragraph', text: [
-          'Satuan Pendidikan: ' + (school.name || '-'), 'NPSN: ' + (school.npsn || '-'),
-          'Guru Mata Pelajaran: ' + (profile.name || '-'), 'NIP: ' + (profile.nip || '-'),
-          'Tahun Ajaran: ' + academicYear, 'Topik / Materi: ' + (matchedPlan?.topic || matchedPlan?.title || '-'),
-          'Bab / Unit: ' + (projection.unitTitle || '-'),
-          'Alokasi Waktu: ' + projection.resolvedAllocatedJP + ' JP',
-        ].join('\n') });
-        for (const section of projection.sections || []) {
-          sections.push({ type: 'heading', text: section.title, level: 1 });
-          if (section.lines.length) sections.push({ type: 'paragraph', text: section.lines.join('\n') });
-        }
-        break;
-      }
-
-      // Compile TP string strictly from canonical resolved TPs
-      const tpStatements =
-        projection.resolvedTPs.length > 0
-          ? projection.resolvedTPs
-              .map((t, idx) => `${idx + 1}. ${t.code ? `[${t.code}] ` : ''}${t.statement}`)
-              .join('\n')
+      const alokasiWaktuText =
+        typeof projection.resolvedAllocatedJP === 'number' && projection.resolvedAllocatedJP > 0
+          ? `${projection.resolvedAllocatedJP} JP`
           : '-';
 
-      const dimensionsList =
-        matchedPlan?.graduateProfileDimensions && matchedPlan.graduateProfileDimensions.length > 0
-          ? matchedPlan.graduateProfileDimensions
-          : matchedPlan?.p3Dimensions && matchedPlan.p3Dimensions.length > 0
-          ? matchedPlan.p3Dimensions
-          : [];
-      const dimensionsStr = dimensionsList.length > 0 ? dimensionsList.join(', ') : '-';
+      extraIdentityRows = [
+        ['Bab / Unit', `: ${projection.unitTitle || '-'}`],
+        ['Topik / Materi', `: ${matchedPlan?.topic || matchedPlan?.title || '-'}`],
+        ['Alokasi Waktu', `: ${alokasiWaktuText}`],
+      ];
 
-      const resourcesStr = matchedPlan?.resources && matchedPlan.resources.length > 0
-        ? matchedPlan.resources.map((r, i) => `${i + 1}. ${r.title}${r.source ? ` (${r.source})` : ''}`).join('\n')
-        : '-';
-
-      const alokasiWaktuStr = typeof projection.resolvedAllocatedJP === 'number' && projection.resolvedAllocatedJP > 0
-        ? `${projection.resolvedAllocatedJP} JP`
-        : '-';
-
-      const infoUmumLines: string[] = [];
-      {
-        infoUmumLines.push(`Alokasi Waktu: ${alokasiWaktuStr}`);
-        infoUmumLines.push(`Kompetensi Awal: ${matchedPlan?.initialCompetency || '-'}`);
-        infoUmumLines.push(`Dimensi Profil Lulusan: ${dimensionsStr}`);
-        infoUmumLines.push(`Sarana & Prasarana: ${resourcesStr}`);
-        if (matchedPlan?.targetStudents && matchedPlan.targetStudents.trim().length > 0) {
-          infoUmumLines.push(`Karakteristik/Kebutuhan Belajar Murid: ${matchedPlan.targetStudents.trim()}`);
-        }
-        infoUmumLines.push(`Model/Praktik Pembelajaran: ${matchedPlan?.learningModel || '-'}`);
+      if (context.productionMode && (!projection.meetings || projection.meetings.length === 0) && projection.resolvedTPs.length > 0) {
+        sections.push({ type: 'heading', text: 'Tujuan Pembelajaran (TP)', level: 1 });
+        sections.push({
+          type: 'paragraph',
+          text: projection.resolvedTPs
+            .map((t, idx) => `${idx + 1}. ${t.code ? `[${t.code}] ` : ''}${t.statement}`)
+            .join('\n'),
+        });
       }
 
-      sections.push({
-        type: 'heading',
-        text: 'I. INFORMASI UMUM',
-        level: 1,
-      });
-      sections.push({
-        type: 'paragraph',
-        text: infoUmumLines.join('\n'),
-      });
-
-      sections.push({
-        type: 'heading',
-        text: 'II. KOMPONEN INTI',
-        level: 1,
-      });
-      sections.push({
-        type: 'paragraph',
-        text: (`Tujuan Pembelajaran:\n${tpStatements}\n\nPemahaman Bermakna:\n${matchedPlan?.meaningfulUnderstanding || '-'}\n\nPertanyaan Pemantik:\n${matchedPlan?.triggerQuestions && matchedPlan.triggerQuestions.length > 0 ? matchedPlan.triggerQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n') : '-'}`),
-      });
-
-      sections.push({
-        type: 'heading',
-        text: 'III. RENCANA PERTEMUAN',
-        level: 1,
-      });
-      sections.push({
-        type: 'paragraph',
-        text: '........................................................................................................................',
-      });
-
-      sections.push({
-        type: 'heading',
-        text: 'IV. ASESMEN + KKTP',
-        level: 1,
-      });
-      sections.push({
-        type: 'paragraph',
-        text: '1. Rencana Asesmen: ........................................................\n2. Kriteria Ketercapaian Tujuan Pembelajaran (KKTP): ........................................................',
-      });
-
-      sections.push({
-        type: 'heading',
-        text: 'V. DIFERENSIASI',
-        level: 1,
-      });
-      sections.push({
-        type: 'paragraph',
-        text: '........................................................................................................................',
-      });
-
-      sections.push({
-        type: 'heading',
-        text: 'VI. PENGAYAAN/REMEDIAL',
-        level: 1,
-      });
-      sections.push({
-        type: 'paragraph',
-        text: '1. Rencana Pengayaan: ........................................................\n2. Rencana Remedial: ........................................................',
-      });
-
-      sections.push({
-        type: 'heading',
-        text: 'VII. REFLEKSI',
-        level: 1,
-      });
-      sections.push({
-        type: 'paragraph',
-        text: '1. Refleksi Guru: ........................................................\n2. Refleksi Murid: ........................................................',
-      });
+      for (const section of projection.sections || []) {
+        sections.push({ type: 'heading', text: section.title, level: 1 });
+        if (section.lines.length) {
+          sections.push({ type: 'paragraph', text: section.lines.join('\n') });
+        }
+      }
       break;
     }
 

@@ -72,6 +72,7 @@ export interface AnnualPlanningManagerProps {
   onNextStep: () => void;
   onReviewAnnualJPReference?: (yearPlanId: string) => boolean;
   onBackToMapping: () => void;
+  productionMode?: boolean;
 }
 
 export const AnnualPlanningManager: React.FC<AnnualPlanningManagerProps> = ({
@@ -94,6 +95,7 @@ export const AnnualPlanningManager: React.FC<AnnualPlanningManagerProps> = ({
   onNextStep,
   onReviewAnnualJPReference,
   onBackToMapping,
+  productionMode = false,
 }) => {
   // Identify Semester 1 and Semester 2 plans from the year hierarchy
   const sem1Plan = useMemo(() => {
@@ -379,11 +381,13 @@ export const AnnualPlanningManager: React.FC<AnnualPlanningManagerProps> = ({
 
     const t2Locked = false;
 
-    const t3Locked =
-      !(t1Complete && t2Complete);
+    const t3Locked = productionMode
+      ? false
+      : !(t1Complete && t2Complete);
 
-    const t4Locked =
-      !(t1Complete && t2Complete && t3Complete);
+    const t4Locked = productionMode
+      ? false
+      : !(t1Complete && t2Complete && t3Complete);
 
     const t5Locked = false;
 
@@ -448,6 +452,7 @@ export const AnnualPlanningManager: React.FC<AnnualPlanningManagerProps> = ({
     s1PlannedCapacity,
     s2PlannedCapacity,
     meetingCountDetail,
+    productionMode,
   ]);
 
   const isAnnualReady = useMemo(() => {
@@ -1124,10 +1129,10 @@ export const AnnualPlanningManager: React.FC<AnnualPlanningManagerProps> = ({
                 </span>
                 <button
                   type="button"
-                  disabled={!nextStepCTA.isReady}
+                  disabled={!productionMode && !nextStepCTA.isReady}
                   onClick={() => handleSelectTask(nextStepCTA.targetId)}
                   className={`px-5 py-2.5 rounded-xl font-bold transition flex items-center gap-2 cursor-pointer ${
-                    nextStepCTA.isReady
+                    (productionMode || nextStepCTA.isReady)
                       ? 'bg-blue-900 hover:bg-blue-950 text-white shadow-xs'
                       : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
                   }`}
@@ -1164,10 +1169,10 @@ export const AnnualPlanningManager: React.FC<AnnualPlanningManagerProps> = ({
                 <button
                   type="button"
                   id="finalize-step08"
-                  disabled={!isAnnualReady}
-                  onClick={() => { if (isAnnualReady) onNextStep(); }}
+                  disabled={!productionMode && !isAnnualReady}
+                  onClick={() => { if (productionMode || isAnnualReady) onNextStep(); }}
                   className={`px-5 py-2.5 rounded-xl font-bold transition flex items-center gap-2 cursor-pointer ${
-                    isAnnualReady
+                    (productionMode || isAnnualReady)
                       ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
                       : 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed'
                   }`}

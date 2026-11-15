@@ -41,6 +41,7 @@ interface ATPManagerProps {
   onSaveATP: (atp: ATPData) => void;
   onNextStep: () => void;
   onBackToTP: () => void;
+  productionMode?: boolean;
 }
 
 export const ATPManager: React.FC<ATPManagerProps> = ({
@@ -54,6 +55,7 @@ export const ATPManager: React.FC<ATPManagerProps> = ({
   onSaveATP,
   onNextStep,
   onBackToTP,
+  productionMode = false,
 }) => {
   const [rationale, setRationale] = useState(atp.rationale || '');
   const [items, setItems] = useState<ATPItem[]>(atp.items || []);
@@ -338,6 +340,10 @@ export const ATPManager: React.FC<ATPManagerProps> = ({
   };
 
   const handleSaveAndNext = () => {
+    if (productionMode) {
+      onNextStep();
+      return;
+    }
     if (items.length === 0) {
       alert('Susun minimal 1 butir Alur Tujuan Pembelajaran (ATP) sebelum melanjutkan.');
       return;

@@ -125,9 +125,10 @@ export function resolveZipLearningPlan(plan: LearningPlan, annual: DocumentGener
     const targets = semesters.filter(s => s.context.academicSetting.id === plan.academicSettingId);
     if (targets.length !== 1) return fail('SemesterPlan Modul Ajar tidak tersedia atau ambigu.');
     const target = targets[0];
+    const planIdx = target.context.learningPlans?.findIndex(p => p.id === plan.id) ?? -1;
     const item: AnnualZipWorkItem = { type: 'MODUL_AJAR', instanceId: plan.id, instanceTitle: plan.topic || plan.title || plan.id,
       context: { ...target.context, learningPlans: [plan], activeLearningPlanId: plan.id, skipDownload: true },
-      folderCategory: semesterZipFolder(target.semester), seqNum: target.context.learningPlans?.findIndex(p => p.id === plan.id)! + 1 };
+      folderCategory: semesterZipFolder(target.semester), seqNum: planIdx >= 0 ? planIdx + 1 : 1 };
     return { item, reason: undefined };
   }
   const units = annual.atpUnitMapping?.units.filter(unit => unit.id === plan.unitId) || [];

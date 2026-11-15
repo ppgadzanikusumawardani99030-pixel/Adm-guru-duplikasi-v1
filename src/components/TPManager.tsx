@@ -58,6 +58,7 @@ interface TPManagerProps {
   onSaveTP: (tp: TPData) => void;
   onNextStep: () => void;
   onBackToCP: () => void;
+  productionMode?: boolean;
 }
 
 export const TPManager: React.FC<TPManagerProps> = ({
@@ -70,6 +71,7 @@ export const TPManager: React.FC<TPManagerProps> = ({
   onSaveTP,
   onNextStep,
   onBackToCP,
+  productionMode = false,
 }) => {
   const [items, setItems] = useState<TPItem[]>(tp.items || []);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -389,6 +391,10 @@ export const TPManager: React.FC<TPManagerProps> = ({
   };
 
   const handleContinue = () => {
+    if (productionMode) {
+      onNextStep();
+      return;
+    }
     if (items.length === 0) {
       alert('Tambahkan minimal 1 Tujuan Pembelajaran (TP) sebelum menyusun ATP.');
       recordDiagnosticEvent({
@@ -1043,7 +1049,7 @@ export const TPManager: React.FC<TPManagerProps> = ({
           )}
         </div>
 
-        {saveState === 'SAVED_READY' && (
+        {(saveState === 'SAVED_READY' || productionMode) && (
           <button
             id="btn-next-to-atp"
             type="button"

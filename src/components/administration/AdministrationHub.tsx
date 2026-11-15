@@ -216,9 +216,11 @@ export const AdministrationHub: React.FC<AdministrationHubProps> = ({
   React.useEffect(() => {
     if (productionMode) {
       setActiveTab('export_docs');
-      return;
     }
-    if (!isK13Active && activeTab === 'time_planning') {
+  }, [productionMode]);
+
+  React.useEffect(() => {
+    if (!productionMode && !isK13Active && activeTab === 'time_planning') {
       setActiveTab('kktp');
     }
   }, [isK13Active, activeTab, productionMode]);

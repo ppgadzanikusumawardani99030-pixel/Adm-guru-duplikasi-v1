@@ -682,6 +682,23 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
           await navigator.clipboard.writeText(buildProductionEvaluationReport(context));
           setExportSuccessMessage('Laporan evaluasi berhasil disalin.');
         } catch (error) {
+          try {
+            const report = buildProductionEvaluationReport(context);
+            const area = document.createElement('textarea');
+            area.value = report;
+            area.style.position = 'fixed';
+            area.style.opacity = '0';
+            document.body.appendChild(area);
+            area.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(area);
+            if (ok) {
+              setExportSuccessMessage('Laporan evaluasi berhasil disalin.');
+              return;
+            }
+          } catch {
+            // Fall through to error notice
+          }
           setExportErrorMessage(error instanceof Error ? error.message : 'Laporan tidak dapat disalin.');
         }
       }}>Salin Laporan Evaluasi</button>}
@@ -1639,7 +1656,7 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
                               <tr key={elem.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
                                 <td className="p-1.5 border border-slate-300 text-center font-bold">{idx + 1}</td>
                                 <td className="p-1.5 border border-slate-300 font-bold text-blue-950">{elem.name}</td>
-                                <td className="p-1.5 border border-slate-300 text-slate-700">{elem.description}</td>
+                                <td className="p-1.5 border border-slate-300 text-slate-700">{elem.content || elem.sourceText || '-'}</td>
                                 <td className="p-1.5 border border-slate-300">
                                   <div className="text-[10px] text-slate-600">
                                     Mengidentifikasi, memahami, menerapkan, mengevaluasi materi {elem.name}
@@ -1682,93 +1699,78 @@ export const AdminDocsExport: React.FC<AdminDocsExportProps> = ({
 
             {/* 1. ATP PREVIEW */}
             {activePreviewType === 'ATP' && (() => {
-              const atpProj = buildATPDocumentProjection(context);
-              if ((!atpProj.isReady)) {
+              const atpProj = buildATPDocumentProjection(previewContext);
+              if (!atpProj.isReady) {
                 return (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium space-y-2">
                     <div className="font-bold flex items-center gap-1.5 text-amber-900">
                       <AlertCircle className="w-4 h-4 text-amber-600" />
                       Prasyarat Alur Tujuan Pembelajaran (ATP) Belum Terpenuhi
                     </div>
-                    <div>{(atpProj as any).unreadyReason || 'ATP belum siap diekspor.'}</div>
+                    <div>{atpProj.error || 'ATP belum siap diekspor.'}</div>
                   </div>
                 );
               }
 
               return (
                 <div className="space-y-5">
-                  {((atpProj as any).sections || []).map((sec: any, sIdx: number) => {
-                    if (sec.type === 'rationale') {
-                      return (
-                        <div key={sIdx} className="space-y-1">
-                          <h5 className="font-bold text-slate-900 uppercase text-xs">{sec.title}</h5>
-                          <p className="text-slate-700 leading-relaxed text-justify bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
-                            {sec.text || '-'}
-                          </p>
-                        </div>
-                      );
-                    }
-                    if (sec.type === 'cpReference') {
-                      return (
-                        <div key={sIdx} className="space-y-2">
-                          <h5 className="font-bold text-slate-900 uppercase text-xs">{sec.title}</h5>
-                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2 text-xs">
-                            {sec.rows.map(([label, val], rIdx) => (
-                              <div key={rIdx} className="flex gap-2">
-                                <span className="font-semibold text-slate-800 w-36 shrink-0">{label}</span>
-                                <span className="text-slate-600">:</span>
-                                <span className="text-slate-700 leading-relaxed">{val}</span>
-                              </div>
+                  {atpProj.rationale && (
+                    <div className="space-y-1">
+                      <h5 className="font-bold text-slate-900 uppercase text-xs">A. Rasionalisasi Alur Pembelajaran</h5>
+                      <p className="text-slate-700 leading-relaxed text-justify bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs">
+                        {atpProj.rationale}
+                      </p>
+                    </div>
+                  )}
+                  {atpProj.cpReferenceLines.length > 0 && (
+                    <div className="space-y-2">
+                      <h5 className="font-bold text-slate-900 uppercase text-xs">B. Capaian Pembelajaran Rujukan</h5>
+                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5 text-xs text-slate-700 leading-relaxed">
+                        {atpProj.cpReferenceLines.map((line, rIdx) => (
+                          <p key={rIdx}>{line}</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <h5 className="font-bold text-slate-900 uppercase text-xs">C. Matriks Alur Tujuan Pembelajaran</h5>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-[11px] border border-slate-300 border-collapse">
+                        <thead>
+                          <tr className="bg-blue-900 text-white font-semibold">
+                            {ATP_DOCUMENT_COLUMNS.map((h, hIdx) => (
+                              <th
+                                key={hIdx}
+                                className={`p-2 border border-blue-800 ${
+                                  hIdx === 0 ? 'w-24 text-center' : hIdx === 1 ? 'w-1/2' : 'w-5/12'
+                                }`}
+                              >
+                                {h}
+                              </th>
                             ))}
-                          </div>
-                        </div>
-                      );
-                    }
-                    if (sec.type === 'atpMatrix') {
-                      return (
-                        <div key={sIdx} className="space-y-2">
-                          <h5 className="font-bold text-slate-900 uppercase text-xs">{sec.title}</h5>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left text-[11px] border border-slate-300 border-collapse">
-                              <thead>
-                                <tr className="bg-blue-900 text-white font-semibold">
-                                  {sec.headers.map((h, hIdx) => (
-                                    <th
-                                      key={hIdx}
-                                      className={`p-2 border border-blue-800 ${
-                                        hIdx === 0 ? 'w-24 text-center' : hIdx === 1 ? 'w-1/2' : 'w-5/12'
-                                      }`}
-                                    >
-                                      {h}
-                                    </th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {sec.rows.map((row, rIdx) => {
-                                  const [tahap, tpText, alurText] = getATPDocumentRowCells(row);
-                                  return (
-                                    <tr key={row.id || rIdx} className={rIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
-                                      <td className="p-2 border border-slate-300 text-center font-bold text-slate-800 align-top">
-                                        {tahap}
-                                      </td>
-                                      <td className="p-2 border border-slate-300 text-slate-700 leading-relaxed align-top">
-                                        {tpText}
-                                      </td>
-                                      <td className="p-2 border border-slate-300 text-slate-700 leading-relaxed align-top">
-                                        {alurText}
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {atpProj.rows.map((row, rIdx) => {
+                            const [tahapLines, tpLines, alurLines] = getATPDocumentRowCells(row);
+                            return (
+                              <tr key={rIdx} className={rIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}>
+                                <td className="p-2 border border-slate-300 text-center font-bold text-slate-800 align-top">
+                                  {tahapLines.join('\n')}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-slate-700 leading-relaxed align-top whitespace-pre-line">
+                                  {tpLines.join('\n')}
+                                </td>
+                                <td className="p-2 border border-slate-300 text-slate-700 leading-relaxed align-top whitespace-pre-line">
+                                  {alurLines.join('\n')}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               );
             })()}

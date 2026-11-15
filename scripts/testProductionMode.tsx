@@ -531,5 +531,46 @@ assert.equal(validateDocumentRequirements('CP', contaminated).isValid, true, 'Si
 const evaluation = buildProductionEvaluationReport(prodCtx);
 assert(evaluation.includes('WARNING') && evaluation.includes('DRAFT') && evaluation.includes('Semester:'));
 assert(evaluation.includes(prodCtx.tp!.items[0].code || prodCtx.tp!.items[0].id));
+assert(!evaluation.includes('ANALISIS_SKL_KI_KD |') && !evaluation.includes('PENETAPAN_KKM |'), 'Merdeka evaluation report must not emit false K13 blockers');
 assert(readFileSync('src/components/AdminDocsExport.tsx', 'utf8').includes('navigator.clipboard.writeText(buildProductionEvaluationReport(context))'));
+
+// Verify K13 WorkflowStepper also unlocks every step in productionMode
+const k13Markup = renderToStaticMarkup(
+  <WorkflowStepper
+    currentStep="admin"
+    onSelectStep={() => {}}
+    profile={swappedCtx.profile}
+    school={swappedCtx.school}
+    workspace={swappedCtx.workspace}
+    academicSetting={{ ...swappedCtx.academicSetting, curriculum: 'Kurikulum 2013', curriculumType: 'K13' }}
+    productionMode
+  />
+);
+assert(!/disabled=""/.test(k13Markup), 'Every K13 production navigation step must be unlocked');
+
+// Verify MODUL_AJAR PDF fallback with incomplete schedule never emits "undefined JP" and preserves TP substance
+const noScheduleModulCtx = {
+  ...swappedCtx,
+  learningMeetingSchedules: [],
+};
+const fallbackModulPdf = await generatePdfDocument('MODUL_AJAR', noScheduleModulCtx);
+const fallbackModulPdfText = decodePdfStreams(await blobBytes(fallbackModulPdf.blob));
+assert(!fallbackModulPdfText.includes('undefined JP'), 'Fallback MODUL_AJAR PDF must never print literal "undefined JP"');
+assert(fallbackModulPdfText.includes('BU SITI AMINAH, S.Pd') || fallbackModulPdfText.includes('SDN HARAPAN BANGSA 09'));
+
+// Verify PEMETAAN_ATP_UNIT exports in productionMode even if TP list is empty as long as ATP has Unit/Bab
+const atpOnlyCtx = {
+  ...swappedCtx,
+  tp: { ...swappedCtx.tp!, items: [] },
+  atp: {
+    ...swappedCtx.atp!,
+    items: swappedCtx.atp!.items.map((item, idx) => idx === 0 ? { ...item, unitTitle: item.unitTitle || 'Bab 1 Gerak Dasar' } : item),
+  },
+};
+assert.equal(validateDocumentRequirements('PEMETAAN_ATP_UNIT', atpOnlyCtx).isValid, true, 'PEMETAAN_ATP_UNIT in productionMode should allow ATP units without TP items');
+const pemetaanPdf = await generatePdfDocument('PEMETAAN_ATP_UNIT', atpOnlyCtx);
+assert(pemetaanPdf.blob.size > 0);
+const pemetaanDocx = await generateDocument('PEMETAAN_ATP_UNIT', atpOnlyCtx);
+assert(pemetaanDocx.blob && pemetaanDocx.blob.size > 0);
+
 console.log('ALL_PRODUCTION_MODE_TESTS_PASSED (synthetic fixtures; real PAI 3 / PJOK 4 ZIP unavailable)');

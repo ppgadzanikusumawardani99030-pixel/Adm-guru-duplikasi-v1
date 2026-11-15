@@ -604,7 +604,7 @@ export function App() {
     : semesterAcademicSetting;
 
   const handleEnterAnnualPlanning = () => {
-    if (productionMode && activeYearPlan) { setCurrentStep('annual-planning'); return; }
+    if (typeof productionMode !== 'undefined' && productionMode && typeof activeYearPlan !== 'undefined' && activeYearPlan) { setCurrentStep('annual-planning'); return; }
     const isMerdeka = !isK13(transitionalAcademicSetting);
 
     if (isMerdeka) {
@@ -627,7 +627,7 @@ export function App() {
   };
 
   const handleSelectStep = (step: WorkflowStepId) => {
-    if (productionMode && activeYearPlan && step !== 'admin') { setCurrentStep(step); return; }
+    if (step !== 'admin' && typeof productionMode !== 'undefined' && productionMode && typeof activeYearPlan !== 'undefined' && activeYearPlan) { setCurrentStep(step); return; }
     if (step === 'annual-planning') {
       handleEnterAnnualPlanning();
       return;
@@ -1861,6 +1861,7 @@ export function App() {
               profile={activeProfile}
               onSaveCP={handleSaveCP}
               onNextStep={() => setCurrentStep('cp-analysis')}
+              productionMode={productionMode}
             />
           )}
 
@@ -1875,6 +1876,7 @@ export function App() {
               onSaveCPAnalysis={handleSaveCPAnalysis}
               onNextStep={() => setCurrentStep('tp')}
               onBackToCP={() => setCurrentStep('cp')}
+              productionMode={productionMode}
             />
           )}
 
@@ -1889,6 +1891,7 @@ export function App() {
               onSaveTP={handleSaveTP}
               onNextStep={() => setCurrentStep('atp')}
               onBackToCP={() => setCurrentStep('cp-analysis')}
+              productionMode={productionMode}
             />
           )}
 
@@ -1904,6 +1907,7 @@ export function App() {
               onSaveATP={handleSaveATP}
               onNextStep={() => setCurrentStep('atp-mapping')}
               onBackToTP={() => setCurrentStep('tp')}
+              productionMode={productionMode}
             />
           )}
 
@@ -1918,6 +1922,7 @@ export function App() {
               onSaveMapping={handleSaveATPUnitMapping}
               onNextStep={handleEnterAnnualPlanning}
               onBackToATP={() => setCurrentStep('atp')}
+              productionMode={productionMode}
             />
           )}
 
@@ -1951,6 +1956,7 @@ export function App() {
               }}
               onNextStep={() => setCurrentStep('semester')}
               onBackToMapping={() => setCurrentStep('atp-mapping')}
+              productionMode={productionMode}
             />
           )}
 

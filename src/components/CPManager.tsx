@@ -33,6 +33,7 @@ interface CPManagerProps {
   profile: TeacherProfile;
   onSaveCP: (cp: CPData) => void;
   onNextStep: () => void;
+  productionMode?: boolean;
 }
 
 export const CPSourceSearchDiagnostic: React.FC<{ report: CPSourceSearchReport }> = ({ report }) => (
@@ -53,6 +54,7 @@ export const CPManager: React.FC<CPManagerProps> = ({
   profile,
   onSaveCP,
   onNextStep,
+  productionMode = false,
 }) => {
   const [generalDescription, setGeneralDescription] = useState(cp.generalDescription || '');
   const [elements, setElements] = useState<CPElem[]>(cp.elements || []);
@@ -223,11 +225,15 @@ export const CPManager: React.FC<CPManagerProps> = ({
 
   const handleSaveAndNext = () => {
     if (!generalDescription.trim() && elements.length === 0) {
+      if (productionMode) {
+        onNextStep();
+        return;
+      }
       alert('Mohon isi deskripsi CP umum atau minimal 1 elemen CP sebelum melanjutkan.');
       return;
     }
     const savedSuccessfully = handleSave();
-    if (savedSuccessfully) {
+    if (savedSuccessfully || productionMode) {
       onNextStep();
     }
   };

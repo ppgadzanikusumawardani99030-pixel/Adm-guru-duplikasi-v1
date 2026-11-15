@@ -6,35 +6,89 @@ import { validateWorkflowDependencies } from './workflowEngine';
 import { isValidDocumentDate } from './documentDateService';
 import { isQuotaExceededError, saveStorageV5, validateStorageStateV5 } from './storageV5';
 
+import { getCurriculumTypeFromSetting } from './curriculumRouter';
+
 export const PRODUCTION_MODE_STORAGE_KEY = 'administrasi_guru_production_mode_v1';
 
 /** Quality diagnostics never authorize export; document validators retain that responsibility. */
 export function buildProductionEvaluationReport(context: DocumentGenerationContext): string {
   const year = context.zipAnnualSource?.yearPlan;
   const workflow = validateWorkflowDependencies(context);
+  const curType = getCurriculumTypeFromSetting(context.academicSetting);
+  const k13OnlyDocs = new Set<DocumentType>(['ANALISIS_SKL_KI_KD', 'PENETAPAN_KKM']);
+  const merdekaOnlyDocs = new Set<DocumentType>(['CP', 'TP', 'ANALISIS_CP_TP', 'ATP', 'PEMETAAN_ATP_UNIT', 'MODUL_AJAR', 'KKTP', 'ASESMEN']);
+
+  const cpAnalysis = (context as { cpAnalysis?: { id?: string; workflowStatus?: string } }).cpAnalysis;
+  const sourceLabel = year?.identityOnlyImport?.sourceIdentityTokens?.slice(0, 2).join(', ') || '-';
   const lines = [
     'LAPORAN EVALUASI MASTER',
-    `Master: ${year?.id || context.workspace?.id || '-'} | ${year?.identityOnlyImport?.importedAt || '-'}`,
+    `Master: ${year?.id || context.workspace?.id || '-'} | Sumber: ${sourceLabel} | Diimpor: ${year?.identityOnlyImport?.importedAt || '-'}`,
     `Mapel: ${context.academicSetting.subject} | Kelas: ${context.academicSetting.grade} | Fase: ${context.academicSetting.phase || '-'} | Semester: ${context.academicSetting.semester}`,
     'Tahap | Kode objek | Jenis masalah | Penyebab | Dampak ekspor | Perbaikan minimal',
   ];
-  for (const issue of workflow.issues) lines.push(
-    `${issue.module} | ${issue.targetId || issue.code} | WARNING ${issue.code} | ${issue.message} | Tidak mengunci navigasi; ekspor diperiksa per dokumen | Perbaiki hanya data yang disebut pada penyebab.`
-  );
-  for (const [stage, objects] of [['TP', context.tp?.items], ['ATP', context.atp?.items], ['MODUL_AJAR', context.learningPlans]] as const) {
+
+  for (const issue of workflow.issues) {
+    lines.push(
+      `${issue.module} | ${issue.targetId || issue.code} | WARNING ${issue.code} | ${issue.message} | Tidak mengunci navigasi; ekspor diperiksa per dokumen | Perbaiki hanya data yang disebut pada penyebab.`
+    );
+  }
+
+  if (context.cp && (context.cp.workflowStatus || 'DRAFT') !== 'SIAP') {
+    lines.push(`CP | ${context.cp.id || 'cp'} | WARNING DRAFT | CP belum berstatus SIAP | DRAFT tidak menghalangi ekspor | Tinjau CP tanpa regenerasi.`);
+  }
+  if (cpAnalysis && (cpAnalysis.workflowStatus || 'DRAFT') !== 'SIAP') {
+    lines.push(`CP_ANALYSIS | ${cpAnalysis.id || 'cp-analysis'} | WARNING DRAFT | Analisis CP belum berstatus SIAP | DRAFT tidak menghalangi ekspor | Tinjau hasil analisis bila perlu.`);
+  }
+  if (context.atp && (context.atp.workflowStatus || 'DRAFT') !== 'SIAP') {
+    lines.push(`ATP | ${context.atp.id || 'atp'} | WARNING DRAFT | Dokumen ATP belum berstatus SIAP | DRAFT tidak menghalangi ekspor | Tinjau kelengkapan ATP tanpa regenerasi.`);
+  }
+  if (context.calendar && context.calendar.workflowStatus !== 'CONFIRMED') {
+    lines.push(`KALENDER_AKADEMIK | ${context.calendar.id || 'calendar'} | WARNING KALENDER | Status kalender: ${context.calendar.workflowStatus || 'UNRESOLVED'} | Tidak mengunci ekspor dokumen lain | Konfirmasi kalender pada Perencanaan Tahunan jika ingin mengesahkan jadwal.`);
+  }
+
+  for (const [stage, objects] of [
+    ['TP', context.tp?.items],
+    ['ATP', context.atp?.items],
+    ['MODUL_AJAR', context.learningPlans],
+    ['ASESMEN', context.assessmentPackages],
+  ] as const) {
     for (const object of objects || []) {
-      const value = object as { id: string; code?: string; workflowStatus?: string; status?: string };
-      if ((value.workflowStatus || value.status || 'DRAFT') !== 'SIAP') lines.push(
-        `${stage} | ${value.code || value.id} | WARNING DRAFT | Objek belum dikonfirmasi SIAP | DRAFT tidak menghalangi ekspor | Tinjau kelengkapan objek tanpa regenerasi.`
-      );
+      const value = object as { id: string; code?: string; title?: string; workflowStatus?: string; status?: string };
+      if ((value.workflowStatus || value.status || 'DRAFT') !== 'SIAP') {
+        lines.push(
+          `${stage} | ${value.code || value.id} | WARNING DRAFT | Objek belum dikonfirmasi SIAP | DRAFT tidak menghalangi ekspor | Tinjau kelengkapan objek tanpa regenerasi.`
+        );
+      }
     }
   }
-  for (const item of DOCUMENT_CATALOG) {
-    try {
-      const validation = validateDocumentRequirements(item.type, { ...context, productionMode: true });
-      for (const reason of validation.missingFields) lines.push(`${item.type} | ${context.activeLearningPlanId || context.activeAssessmentPackageId || '-'} | BLOCKER | ${reason} | Hanya dokumen ini dilewati | Lengkapi data minimum atau tinjau identitas yang disebut.`);
-    } catch (error) {
-      lines.push(`${item.type} | - | BLOCKER struktur | ${error instanceof Error ? error.message : String(error)} | Hanya dokumen ini gagal | Perbaiki struktur data dokumen ini.`);
+
+  const applicableCatalog = DOCUMENT_CATALOG.filter((item) => {
+    if (curType === 'K13') return !merdekaOnlyDocs.has(item.type);
+    if (curType === 'KURIKULUM_MERDEKA') return !k13OnlyDocs.has(item.type);
+    return true;
+  });
+
+  for (const item of applicableCatalog) {
+    const instances: Array<{ id?: string; ctx: Partial<DocumentGenerationContext> }> =
+      item.type === 'MODUL_AJAR' && (context.learningPlans?.length || 0) > 1 && !context.activeLearningPlanId
+        ? context.learningPlans!.map((p) => ({ id: p.id, ctx: { ...context, activeLearningPlanId: p.id, productionMode: true } }))
+        : item.type === 'ASESMEN' && (context.assessmentPackages?.length || 0) > 1 && !context.activeAssessmentPackageId
+        ? context.assessmentPackages!.map((pkg) => ({ id: pkg.id, ctx: { ...context, activeAssessmentPackageId: pkg.id, productionMode: true } }))
+        : [{ id: context.activeLearningPlanId || context.activeAssessmentPackageId || '-', ctx: { ...context, productionMode: true } }];
+
+    for (const inst of instances) {
+      try {
+        const validation = validateDocumentRequirements(item.type, inst.ctx);
+        for (const reason of validation.missingFields) {
+          lines.push(
+            `${item.type} | ${inst.id || '-'} | BLOCKER | ${reason} | Hanya dokumen ini dilewati | Lengkapi data minimum atau tinjau identitas yang disebut.`
+          );
+        }
+      } catch (error) {
+        lines.push(
+          `${item.type} | ${inst.id || '-'} | BLOCKER struktur | ${error instanceof Error ? error.message : String(error)} | Hanya dokumen ini gagal | Perbaiki struktur data dokumen ini.`
+        );
+      }
     }
   }
   return lines.join('\n');

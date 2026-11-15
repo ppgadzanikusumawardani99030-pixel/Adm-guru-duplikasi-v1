@@ -100,10 +100,13 @@ function resolveSnapshotContext(
   context: DocumentGenerationContext,
   snapshotOverride?: DocumentSnapshot
 ): DocumentGenerationContext {
-  // Production always exports live destination identity, including direct renderer calls.
   if (context.productionMode) {
-    const live = { ...context, snapshot: undefined };
-    return { ...live, snapshot: createDocumentSnapshot(live, 'docx', context.documentMode) };
+    const resolvedDate =
+      context.documentDate !== undefined && context.documentDate !== null && context.documentDate !== ''
+        ? context.documentDate
+        : context.workspace?.documentDate;
+    const live = { ...context, documentDate: resolvedDate, snapshot: undefined };
+    return { ...live, snapshot: createDocumentSnapshot(live, context.snapshot?.format || 'docx', context.documentMode) };
   }
   const snap =
     snapshotOverride ||

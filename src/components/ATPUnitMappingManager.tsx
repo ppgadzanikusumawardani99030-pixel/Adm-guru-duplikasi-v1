@@ -81,6 +81,7 @@ export interface ATPUnitMappingManagerProps {
   onSaveMapping: (updatedMapping: ATPUnitMappingData) => boolean;
   onNextStep: () => void;
   onBackToATP: () => void;
+  productionMode?: boolean;
 }
 
 /**
@@ -292,6 +293,7 @@ export const ATPUnitMappingManager: React.FC<ATPUnitMappingManagerProps> = ({
   onSaveMapping,
   onNextStep,
   onBackToATP,
+  productionMode = false,
 }) => {
   const [units, setUnits] = useState<ATPUnitMapping[]>(() =>
     createInitialUnits(mapping, atp.items || [])
@@ -1195,6 +1197,11 @@ export const ATPUnitMappingManager: React.FC<ATPUnitMappingManagerProps> = ({
 
   const handleProceedNext = () => {
     setLocalValidationNotice(null);
+    if (productionMode) {
+      if (canSave && hasChanges) handleSave();
+      onNextStep();
+      return;
+    }
 
     const result = proceedWithATPUnitMapping(mappingReadiness, canSave ? handleSave : undefined, onNextStep);
     if (!result.proceeded) setLocalValidationNotice(`Belum dapat lanjut Step 08: ${result.issues.join(' ')}`);
@@ -2117,7 +2124,7 @@ export const ATPUnitMappingManager: React.FC<ATPUnitMappingManagerProps> = ({
           {(saveErrorNotice || localValidationNotice) && <p role="alert" className="text-sm text-red-700">{saveErrorNotice || localValidationNotice}</p>}
           <button
             id="btn-next-to-annual-planning"
-            disabled={isAnalyzing || !mappingReadiness.canProceed || (!!autoRepair && hasChanges)}
+            disabled={isAnalyzing || (!productionMode && (!mappingReadiness.canProceed || (!!autoRepair && hasChanges)))}
             type="button"
             onClick={handleProceedNext}
             aria-describedby={!mappingReadiness.canProceed ? 'mapping-proceed-blockers' : undefined}
